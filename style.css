@@ -555,3 +555,49 @@ input[type="range"]::-webkit-slider-thumb:hover {
     border-color: var(--primary);
     box-shadow: 0 0 6px rgba(56, 189, 248, 0.2);
 }
+
+/* Canvas Legend Styles */
+.canvas-legend {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    background: rgba(4, 7, 17, 0.4);
+    border: 1px solid var(--border-stroke);
+    border-radius: 8px;
+    padding: 8px 16px;
+    margin: 8px 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    display: inline-block;
+}
+
+.cyan-glow {
+    background: #06b6d4;
+    box-shadow: 0 0 6px #06b6d4;
+}
+
+.pink-glow {
+    background: #f43f5e;
+    box-shadow: 0 0 6px #f43f5e;
+}
+
+.white-line {
+    background: #ffffff;
+    height: 2px;
+    width: 18px;
+    display: inline-block;
+    box-shadow: 0 0 4px rgba(255,255,255,0.8);
+}

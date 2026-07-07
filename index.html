@@ -50,6 +50,21 @@
                         <canvas id="sim-canvas" width="800" height="360"></canvas>
                         <div class="canvas-overlay-text" id="canvas-loading" style="display: none;">연산 중...</div>
                     </div>
+                    <!-- Legend explanation for the canvas colors and lines -->
+                    <div class="canvas-legend">
+                        <div class="legend-item">
+                            <span class="legend-color cyan-glow"></span>
+                            <span><strong>청색/하늘색(Cyan)</strong>: (+) 위상 전기장 세기</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color pink-glow"></span>
+                            <span><strong>적색/분홍색(Pink)</strong>: (-) 위상 전기장 세기</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color white-line"></span>
+                            <span><strong>흰색 실선(White Curve)</strong>: 탐침 수직선에서의 횡방향 전기장 분포 $E(y)$</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="card graph-card">
