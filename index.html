@@ -32,7 +32,13 @@
             <p class="subtitle">두 개의 인접한 도파로를 통해 진행하는 전자기파의 전기장 세기와 에너지 전이(에바네센트 결합) 현상을 실시간으로 관찰할 수 있는 물리학 시뮬레이터입니다.</p>
         </section>
 
-        <div class="simulator-layout">
+        <!-- Tabs Header for Navigation -->
+        <div class="tabs-container">
+            <button class="tab-btn active" id="btn-tab-coupled">2D 결합 도파로 시뮬레이터</button>
+            <button class="tab-btn" id="btn-tab-3d">3D Slab/Rib 모드 해석기 (EIM)</button>
+        </div>
+
+        <div class="simulator-layout tab-content active-tab" id="tab-coupled">
             <!-- Left Panel: Simulation Canvas & Real-time Graph -->
             <div class="main-panel">
                 <div class="card canvas-card">
@@ -254,10 +260,204 @@
 
                         <h4>4. 결합계수 ($\kappa$) 및 진행 방향($x$)의 전력 분포</h4>
                         <div class="formula">
-                            $$P_1(x) = P_0 g(x)^2 \left[ \cos^2(q x) + \frac{\delta^2}{q^2} \sin^2(q x) \right]$$
-                            $$P_2(x) = P_0 g(x)^2 \left[ \frac{\kappa^2}{q^2} \sin^2(q x) \right]$$
+                            $$P_1(x) = \cos^2(q x) + \frac{\delta^2}{q^2} \sin^2(q x)$$
+                            $$P_2(x) = \frac{\kappa^2}{q^2} \sin^2(q x)$$
                         </div>
-                        <p class="formula-note">여기서 $g(x)$는 가우시안 포락선, $\delta = (\beta_1 - \beta_2)/2$는 위상 불일치 상수, $q = \sqrt{\kappa^2 + \delta^2}$ 입니다.</p>
+                        <p class="formula-note">여기서 $\delta = (\beta_1 - \beta_2)/2$는 위상 불일치 상수, $q = \sqrt{\kappa^2 + \delta^2}$ 입니다.</p>
+                    </div>
+                </div>
+            </div>
+        </div> <!-- End of tab-coupled -->
+
+        <!-- 3D Slab/Rib Waveguide Tab Content -->
+        <div class="simulator-layout tab-content" id="tab-3d">
+            <!-- Left Panel: 3D Mode Canvas & 1D Cutlines -->
+            <div class="main-panel">
+                <div class="card canvas-card">
+                    <div class="card-header">
+                        <h2>3D 전자기장 모드 횡단면 분포 $E(y, z)$</h2>
+                        <div class="header-actions">
+                            <span class="badge" id="badge-mode-type">Rib Waveguide (Fundamental Mode)</span>
+                        </div>
+                    </div>
+                    <div class="canvas-wrapper" style="position: relative;">
+                        <!-- 2D Heatmap canvas (y-z plane) -->
+                        <canvas id="canvas-3d" width="800" height="360"></canvas>
+                        <div class="canvas-overlay-text" id="canvas-3d-loading" style="display: none;">연산 중...</div>
+                    </div>
+                    
+                    <!-- Color legend for 3D Mode Profile -->
+                    <div class="canvas-legend">
+                        <div class="legend-item">
+                            <span class="legend-color cyan-glow"></span>
+                            <span><strong>청색/하늘색 (Cyan)</strong>: (+) 방향 전기장 진폭</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color pink-glow"></span>
+                            <span><strong>적색/분홍색 (Pink)</strong>: (-) 방향 전기장 진폭</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color white-line" style="box-shadow: none; background: #eab308; height: 3px;"></span>
+                            <span><strong>황색 실선 (Yellow Line)</strong>: 도파로 매질 경계선</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 1D Cutline plots card -->
+                <div class="card graph-card">
+                    <div class="card-header">
+                        <h2>횡단면 1D 컷라인 프로파일</h2>
+                        <span class="badge">1D Cutlines</span>
+                    </div>
+                    <div class="graph-wrapper">
+                        <!-- Shows E(y, z=z_center) and E(y=0, z) profiles -->
+                        <canvas id="canvas-3d-cutlines" width="800" height="180"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Parameters & Sliders for 3D Waveguide -->
+            <div class="control-panel">
+                <div class="card controls-card">
+                    <div class="card-header">
+                        <h2>3D 구조 및 굴절률 제어</h2>
+                    </div>
+
+                    <!-- Waveguide Geometry Selection -->
+                    <div class="control-group">
+                        <label>도파로 기하학적 형태</label>
+                        <select id="select-wg-type" class="param-select" style="width: 100%; padding: 8px 12px; background: rgba(4,7,17,0.6); border: 1px solid var(--border-stroke); border-radius: 6px; color: var(--primary); font-weight: bold; outline: none; margin-bottom: 8px;">
+                            <option value="rib">Rib Waveguide (립 도파로)</option>
+                            <option value="ridge">Strip/Ridge Waveguide (스트립/릿지 도파로)</option>
+                        </select>
+                    </div>
+
+                    <!-- Mode Info Display -->
+                    <div class="control-group">
+                        <label>도파 모드 상태 (EIM 연산 결과)</label>
+                        <div class="mode-status-container">
+                            <div class="mode-status-item">
+                                <span>유효 굴절률 ($n_{\text{eff}}$):</span>
+                                <strong id="val-3d-neff" style="color: #eab308;">1.4725</strong>
+                            </div>
+                            <div class="mode-status-item">
+                                <span>차단 상태 (Cutoff):</span>
+                                <strong id="val-3d-status" style="color: #22c55e;">도파 모드 존재</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Sliders for 3D Waveguide -->
+                    <div class="slider-group">
+                        <div class="slider-label-row">
+                            <span>코어 너비 (Rib Width, W)</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-3d-width" value="3.0" step="0.1" min="0.5" max="10.0" class="param-input">
+                                <span class="param-unit">μm</span>
+                                <button class="btn-apply" id="btn-apply-3d-width">적용</button>
+                            </div>
+                        </div>
+                        <input type="range" id="slider-3d-width" min="0.5" max="10.0" value="3.0" step="0.1">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label-row">
+                            <span>코어 높이 (Rib Height, H)</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-3d-height" value="2.0" step="0.1" min="0.5" max="5.0" class="param-input">
+                                <span class="param-unit">μm</span>
+                                <button class="btn-apply" id="btn-apply-3d-height">적용</button>
+                            </div>
+                        </div>
+                        <input type="range" id="slider-3d-height" min="0.5" max="5.0" value="2.0" step="0.1">
+                    </div>
+
+                    <!-- Only shown for Rib Waveguide -->
+                    <div class="slider-group" id="group-3d-slab">
+                        <div class="slider-label-row">
+                            <span>슬랩 날개 두께 (Slab Height, h)</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-3d-slab" value="0.8" step="0.1" min="0.0" max="4.0" class="param-input">
+                                <span class="param-unit">μm</span>
+                                <button class="btn-apply" id="btn-apply-3d-slab">적용</button>
+                            </div>
+                        </div>
+                        <input type="range" id="slider-3d-slab" min="0.0" max="4.0" value="0.8" step="0.1">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label-row">
+                            <span>광 wavelength (λ)</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-3d-lambda" value="1.55" step="0.01" min="0.5" max="2.5" class="param-input">
+                                <span class="param-unit">μm</span>
+                                <button class="btn-apply" id="btn-apply-3d-lambda">적용</button>
+                            </div>
+                        </div>
+                        <input type="range" id="slider-3d-lambda" min="0.8" max="2.0" value="1.55" step="0.05">
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="slider-group">
+                        <div class="slider-label-row">
+                            <span>코어 굴절률 ($n_{\text{core}}$)</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-3d-ncore" value="1.500" step="0.001" min="1.0" max="4.0" class="param-input">
+                                <span class="param-unit"></span>
+                                <button class="btn-apply" id="btn-apply-3d-ncore">적용</button>
+                            </div>
+                        </div>
+                        <input type="range" id="slider-3d-ncore" min="1.0" max="4.0" value="1.500" step="0.005">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label-row">
+                            <span>상부 커버 굴절률 ($n_{\text{cover}}$)</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-3d-ncover" value="1.000" step="0.001" min="1.0" max="4.0" class="param-input">
+                                <span class="param-unit"></span>
+                                <button class="btn-apply" id="btn-apply-3d-ncover">적용</button>
+                            </div>
+                        </div>
+                        <input type="range" id="slider-3d-ncover" min="1.0" max="4.0" value="1.000" step="0.005">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label-row">
+                            <span>하부 기판 굴절률 ($n_{\text{sub}}$)</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-3d-nsub" value="1.450" step="0.001" min="1.0" max="4.0" class="param-input">
+                                <span class="param-unit"></span>
+                                <button class="btn-apply" id="btn-apply-3d-nsub">적용</button>
+                            </div>
+                        </div>
+                        <input type="range" id="slider-3d-nsub" min="1.0" max="4.0" value="1.450" step="0.005">
+                    </div>
+                </div>
+
+                <!-- Theory card for 3D Solver -->
+                <div class="card info-card">
+                    <div class="card-header">
+                        <h2>3D 해석 물리학적 원리</h2>
+                        <span class="badge">EIM Theory</span>
+                    </div>
+                    <div class="theory-content">
+                        <h3>실효 굴절률법 (Effective Index Method)</h3>
+                        <p>3차원 Rib/Ridge 구조의 도파로는 2차원 단면 형상 때문에 맥스웰 방정식을 해석학적으로 직접 풀 수 없습니다. 따라서 <strong>실효 굴절률법(EIM)</strong>을 이용해 3차원 문제를 두 단계의 1차원 평판 도파로 문제로 변환하여 실시간으로 정확하게 근사해석합니다.</p>
+                        
+                        <h4>1단계: 수직 방향 1D Slab 연산</h4>
+                        <p>립 중앙부(Region I, 두께 $H$)와 주변 날개부(Region II, 두께 $h$)의 수직 방향 3층 구조를 각각 독립적인 Slab 도파로로 풀어 실효 굴절률 $n_{\text{eff,I}}$와 $n_{\text{eff,II}}$를 계산합니다. (스트립 도파로의 경우 $h=0$이므로 날개 영역은 기판 단일 층 또는 차단 조건으로 처리됩니다.)</p>
+
+                        <h4>2단계: 수평 방향 1D Slab 연산</h4>
+                        <p>앞서 구한 실효 굴절률들을 각각 코어/클래딩의 굴절률로 대체하여 수평 방향의 1D Slab 도파로(너비 $W$)로 매핑해 풀이합니다. 이를 통해 최종 3D 실효 굴절률 $n_{\text{eff}}$ 및 수평 단면 프로파일 $F(y)$를 획득합니다.</p>
+
+                        <h4>3D 전자기장 프로파일 재구성</h4>
+                        <p>최종 2차원 단면 전기장 분포는 각 축 방향 해의 곱으로 나타납니다:
+                        $$E(y, z) = F(y) \cdot G(z)$$
+                        여기서 $G(z)$는 $y$ 위치에 따라 립 중앙부의 모드 형태 $G_I(z)$와 날개부의 모드 형태 $G_{II}(z)$로 나뉘어 물리적인 연속성을 근사 표현합니다.</p>
                     </div>
                 </div>
             </div>

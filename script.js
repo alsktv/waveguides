@@ -1,10 +1,35 @@
-// Coupled Waveguide Simulator (Asymmetric 5-Layer Waveguide Solver, Continuous Wave & Auto-Zoom)
+// Combined Waveguide Simulator (2D Coupled Propagation & 3D Slab/Rib Mode Solver using EIM)
 const canvas = document.getElementById('sim-canvas');
 const ctx = canvas.getContext('2d');
 const graphCanvas = document.getElementById('graph-canvas');
 const gCtx = graphCanvas.getContext('2d');
 
-// DOM Elements: Sliders & Controls
+// Tabs management
+let activeTab = 'coupled';
+
+function switchTab(tabId) {
+    activeTab = tabId;
+    
+    // Toggle active classes
+    document.getElementById('btn-tab-coupled').classList.toggle('active', tabId === 'coupled');
+    document.getElementById('btn-tab-3d').classList.toggle('active', tabId === '3d');
+    
+    document.getElementById('tab-coupled').classList.toggle('active-tab', tabId === 'coupled');
+    document.getElementById('tab-3d').classList.toggle('active-tab', tabId === '3d');
+    
+    if (tabId === '3d') {
+        updatePhysics3D();
+    } else {
+        updatePhysics();
+    }
+}
+
+document.getElementById('btn-tab-coupled').addEventListener('click', () => switchTab('coupled'));
+document.getElementById('btn-tab-3d').addEventListener('click', () => switchTab('3d'));
+
+// ----------------------------------------------------
+// PART 1: 2D Planar Coupled Waveguide Simulator
+// ----------------------------------------------------
 const sliderGap = document.getElementById('slider-gap');
 const sliderWidth = document.getElementById('slider-width');
 const sliderLambda = document.getElementById('slider-lambda');
@@ -14,7 +39,6 @@ const sliderNtop = document.getElementById('slider-ntop');
 const sliderNmid = document.getElementById('slider-nmid');
 const sliderNbot = document.getElementById('slider-nbot');
 const sliderSpeed = document.getElementById('slider-speed');
-
 const valSpeed = document.getElementById('val-speed');
 
 const btnPlayPause = document.getElementById('btn-play-pause');
@@ -22,60 +46,44 @@ const btnReset = document.getElementById('btn-reset');
 const playIcon = btnPlayPause.querySelector('.play-icon');
 const pauseIcon = btnPlayPause.querySelector('.pause-icon');
 
-// Simulation Constants & Scale Factors
-// Horizontal: x-direction (propagation axis). 800px = 400 um (1 px = 0.5 um, pixelScaleX = 2 px/um)
 const pixelScaleX = 2.0; 
-let pixelScaleY = 3.0; // Dynamic scale: updated on gap changes for auto-zoom
+let pixelScaleY = 3.0;
 
 let isPlaying = true;
 let time = 0;
-const launchMode = 'wg1'; // Fixed to Waveguide 1 launch
 
-// Physics parameters
-let gap = 15.0;       // um (separation d)
-let width = 10.0;     // um (core width w)
-let lambda = 1.55;    // um (wavelength)
-let nCore1 = 1.500;   // Core 1 refractive index
-let nCore2 = 1.500;   // Core 2 refractive index
-let nTop = 1.450;     // Top cladding index
-let nMid = 1.450;     // Middle cladding index
-let nBot = 1.450;     // Bottom cladding index
-let speed = 1.0;      // Time speed multiplier
+let gap = 15.0;       
+let width = 10.0;     
+let lambda = 1.55;    
+let nCore1 = 1.500;   
+let nCore2 = 1.500;   
+let nTop = 1.450;     
+let nMid = 1.450;     
+let nBot = 1.450;     
+let speed = 1.0;      
 
-// Solved constants for Asymmetric waveguide layers
+let probeX = 200.0;
+
 let k0, kx1, kx2, gTop, gMid1, gMid2, gBot, phi0, psi0, kappa;
-let phi1 = []; // Precomputed transverse profile for WG1
-let phi2 = []; // Precomputed transverse profile for WG2
+let phi1 = []; 
+let phi2 = []; 
 
-// Calculate the number of guided modes for a 3-layer asymmetric slab waveguide
 function getGuidedModeCount(nCore, nCladL, nCladR, width_um, lambda_um) {
     const k0_val = 2 * Math.PI / lambda_um;
     const cladMax = Math.max(nCladL, nCladR);
     const cladMin = Math.min(nCladL, nCladR);
-    
     if (nCore <= cladMax) return 0;
     
-    // Core transverse wavevector at cutoff (beta = k0 * cladMax)
     const kx_cutoff = k0_val * Math.sqrt(nCore * nCore - cladMax * cladMax);
-    
-    // Decaying wavevector of the other cladding at cutoff
     const g_other_cutoff = k0_val * Math.sqrt(Math.max(0, cladMax * cladMax - cladMin * cladMin));
-    
-    // Phase thickness at cutoff
     const phi_cutoff = kx_cutoff * width_um - Math.atan(g_other_cutoff / kx_cutoff);
-    
-    // Number of modes is 1 + floor(phi_cutoff / pi)
     const modeCount = 1 + Math.floor(phi_cutoff / Math.PI);
-    return Math.max(1, modeCount); // At least fundamental mode is guided
+    return Math.max(1, modeCount);
 }
 
-// Recalculate Physics & Modes
 function updatePhysics() {
-    // 1. Auto-Zoom Calculation: scale up Y axis when gap is small, scale down when gap is large
-    // Ensures details in the gap region are always legible and waveguides don't clip off-screen.
     pixelScaleY = Math.min(28.0, Math.max(2.0, 280 / (width * 2 + gap)));
 
-    // 2. Validation for Waveguide 1 (Core 1 must be denser than adjacent claddings)
     let cladMax1 = Math.max(nTop, nMid);
     if (nCore1 <= cladMax1) {
         nCore1 = cladMax1 + 0.005;
@@ -83,7 +91,6 @@ function updatePhysics() {
         document.getElementById('input-ncore1').value = nCore1.toFixed(3);
     }
     
-    // 3. Validation for Waveguide 2 (Core 2 must be denser than adjacent claddings)
     let cladMax2 = Math.max(nMid, nBot);
     if (nCore2 <= cladMax2) {
         nCore2 = cladMax2 + 0.005;
@@ -93,7 +100,6 @@ function updatePhysics() {
     
     k0 = 2 * Math.PI / lambda;
     
-    // --- Waveguide 1 Solver (Asymmetric 3-layer Slab: Top, Core1, Mid) ---
     let betaMin1 = k0 * cladMax1 + 0.001;
     let betaMax1 = k0 * nCore1 - 0.001;
     let beta1 = solveBeta(nCore1, nTop, nMid, betaMin1, betaMax1);
@@ -103,7 +109,6 @@ function updatePhysics() {
     gMid1 = Math.sqrt(beta1*beta1 - k0*k0*nMid*nMid);
     phi0 = 0.5 * (Math.atan(gTop / kx1) - Math.atan(gMid1 / kx1));
     
-    // --- Waveguide 2 Solver (Asymmetric 3-layer Slab: Mid, Core2, Bot) ---
     let betaMin2 = k0 * cladMax2 + 0.001;
     let betaMax2 = k0 * nCore2 - 0.001;
     let beta2 = solveBeta(nCore2, nMid, nBot, betaMin2, betaMax2);
@@ -113,22 +118,18 @@ function updatePhysics() {
     gBot = Math.sqrt(beta2*beta2 - k0*k0*nBot*nBot);
     psi0 = 0.5 * (Math.atan(gMid2 / kx2) - Math.atan(gBot / kx2));
     
-    // Coupled mode propagation terms
     let betaAvg = (beta1 + beta2) / 2;
-    let delta = (beta1 - beta2) / 2; // Phase mismatch
+    let delta = (beta1 - beta2) / 2;
     
-    // Coupling coefficient kappa
     let gMidAvg = (gMid1 + gMid2) / 2;
     const denominator = Math.sqrt(beta1 * beta2) * (width / 2 + 1 / gTop + 1 / gMid1) * (width / 2 + 1 / gBot + 1 / gMid2);
     kappa = (2 * kx1 * kx2 * gMidAvg * Math.exp(-gMidAvg * gap)) / denominator;
     
-    // Store variables globally for use in E-field and Power Graph calculations
     window.g_beta1 = beta1;
     window.g_beta2 = beta2;
     window.g_delta = delta;
     window.g_q = Math.sqrt(kappa * kappa + delta * delta);
     
-    // Mode profile normalizations (normalizes core peaks so they render consistently)
     let Ic1 = width/2 + Math.sin(kx1 * width) * Math.cos(2 * phi0) / (2 * kx1);
     let It1 = Math.pow(Math.cos(kx1 * width/2 + phi0), 2) / (2 * gTop);
     let Ib1 = Math.pow(Math.cos(kx1 * width/2 - phi0), 2) / (2 * gMid1);
@@ -139,7 +140,6 @@ function updatePhysics() {
     let Ib2 = Math.pow(Math.cos(kx2 * width/2 - psi0), 2) / (2 * gBot);
     let norm2 = 1 / Math.sqrt(Ic2 + It2 + Ib2);
 
-    // Calculate and display the number of guided modes
     let m1 = getGuidedModeCount(nCore1, nTop, nMid, width, lambda);
     let m2 = getGuidedModeCount(nCore2, nMid, nBot, width, lambda);
     document.getElementById('mode-count-1').textContent = `${m1}개`;
@@ -148,7 +148,6 @@ function updatePhysics() {
     precomputeTransverseModes(norm1, norm2);
 }
 
-// Bisection search solver for beta (propagation constant)
 function solveBeta(nCore, nCladL, nCladR, low, high) {
     let mid = (low + high) / 2;
     for (let i = 0; i < 20; i++) {
@@ -167,51 +166,43 @@ function solveBeta(nCore, nCladL, nCladR, low, high) {
     return (low + high) / 2;
 }
 
-// Precompute transverse mode profiles along Y axis
 function precomputeTransverseModes(norm1, norm2) {
     const cy = canvas.height / 2;
     const gap_px = gap * pixelScaleY;
     const w_px = width * pixelScaleY;
     
-    // Core center positions
     const y1 = cy - (gap_px / 2) - (w_px / 2);
     const y2 = cy + (gap_px / 2) + (w_px / 2);
     
     phi1 = new Array(canvas.height);
     phi2 = new Array(canvas.height);
     
-    // WG1 mode profile
     for (let y = 0; y < canvas.height; y++) {
         let dist = y - y1;
         let y_um = dist / pixelScaleY;
         if (Math.abs(dist) <= w_px / 2) {
             phi1[y] = norm1 * Math.cos(kx1 * y_um - phi0);
         } else if (dist < -w_px / 2) {
-            // top cladding
             let boundary_um = -width / 2;
             let tail_um = -y_um - width / 2;
             phi1[y] = norm1 * Math.cos(kx1 * boundary_um - phi0) * Math.exp(-gTop * tail_um);
         } else {
-            // middle cladding
             let boundary_um = width / 2;
             let tail_um = y_um - width / 2;
             phi1[y] = norm1 * Math.cos(kx1 * boundary_um - phi0) * Math.exp(-gMid1 * tail_um);
         }
     }
     
-    // WG2 mode profile
     for (let y = 0; y < canvas.height; y++) {
         let dist = y - y2;
         let y_um = dist / pixelScaleY;
         if (Math.abs(dist) <= w_px / 2) {
             phi2[y] = norm2 * Math.cos(kx2 * y_um - psi0);
         } else if (dist < -w_px / 2) {
-            // middle cladding
             let boundary_um = -width / 2;
             let tail_um = -y_um - width / 2;
             phi2[y] = norm2 * Math.cos(kx2 * boundary_um - psi0) * Math.exp(-gMid2 * tail_um);
         } else {
-            // bottom cladding
             let boundary_um = width / 2;
             let tail_um = y_um - width / 2;
             phi2[y] = norm2 * Math.cos(kx2 * boundary_um - psi0) * Math.exp(-gBot * tail_um);
@@ -219,7 +210,6 @@ function precomputeTransverseModes(norm1, norm2) {
     }
 }
 
-// Render electric field: 2D Continuous Wave color map + Propagating 1D Transverse E(y) profile curve + Stationary borders
 function drawElectricField(theta, probeX) {
     const width_px = canvas.width;
     const height_px = canvas.height;
@@ -238,7 +228,6 @@ function drawElectricField(theta, probeX) {
     const beta1 = window.g_beta1;
     const beta2 = window.g_beta2;
     
-    // 1. Draw 2D Phase Continuous Wave (CW) in the background using color density
     for (let x = 0; x < width_px; x += 2) {
         let x_um = x / pixelScaleX;
         
@@ -248,14 +237,13 @@ function drawElectricField(theta, probeX) {
         let sin_b1x = Math.sin(beta1 * x_um - theta);
         let sin_b2x = Math.sin(beta2 * x_um - theta);
         
-        // Continuous wave coupling amplitudes along x
         let c1 = cos_qx * cos_b1x + (delta / q) * sin_qx * sin_b1x;
         let c2 = (kappa / q) * sin_qx * sin_b2x;
         
         for (let y = 0; y < height_px; y += 2) {
             let E = phi1[y] * c1 + phi2[y] * c2;
             
-            let r = 8, g = 12, b = 22; // Base dark blue background
+            let r = 8, g = 12, b = 22; 
             
             if (E > 0.015) {
                 let amt = Math.min(1.0, E) * 230;
@@ -275,25 +263,20 @@ function drawElectricField(theta, probeX) {
     
     ctx.putImageData(imgData, 0, 0);
     
-    // 2. Draw Waveguide Core Regions - STRICTLY STATIONARY BORDERS
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    // Core 1 borders
     ctx.moveTo(0, y1 - w_px/2); ctx.lineTo(width_px, y1 - w_px/2);
     ctx.moveTo(0, y1 + w_px/2); ctx.lineTo(width_px, y1 + w_px/2);
-    // Core 2 borders
     ctx.moveTo(0, y2 - w_px/2); ctx.lineTo(width_px, y2 - w_px/2);
     ctx.moveTo(0, y2 + w_px/2); ctx.lineTo(width_px, y2 + w_px/2);
     ctx.stroke();
     
-    // 3. Draw Propagating 1D Transverse Electric Field Profile Curve E(y) at the moving probe position
     let probeX_px = probeX * pixelScaleX;
     
-    // Draw the 1D transverse profile shape wiggling horizontally around the probe position
-    ctx.strokeStyle = '#ffffff'; // Solid white wave line
+    ctx.strokeStyle = '#ffffff'; 
     ctx.lineWidth = 2.5;
-    ctx.shadowColor = '#06b6d4'; // Cyan neon glow
+    ctx.shadowColor = '#06b6d4'; 
     ctx.shadowBlur = 8;
     ctx.beginPath();
     
@@ -306,7 +289,7 @@ function drawElectricField(theta, probeX) {
     let c1_prof = cos_qx_c * cos_b1x_c + (delta / q) * sin_qx_c * sin_b1x_c;
     let c2_prof = (kappa / q) * sin_qx_c * sin_b2x_c;
     
-    const profileScale = 50.0; // Profile displacement scaling factor
+    const profileScale = 50.0; 
     
     for (let y = 0; y < height_px; y += 2) {
         let E_prof = phi1[y] * c1_prof + phi2[y] * c2_prof;
@@ -316,9 +299,8 @@ function drawElectricField(theta, probeX) {
         else ctx.lineTo(x_disp, y);
     }
     ctx.stroke();
-    ctx.shadowBlur = 0; // Reset shadow glow
+    ctx.shadowBlur = 0; 
     
-    // Core & cladding static labels
     ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
     ctx.font = 'bold 10px Inter';
     ctx.fillText(`CORE 1 (n = ${nCore1.toFixed(3)})`, 15, y1 + 4);
@@ -329,14 +311,10 @@ function drawElectricField(theta, probeX) {
     ctx.fillText(`중간 클래딩 (n = ${nMid.toFixed(3)})`, 15, cy + 4);
     ctx.fillText(`하부 클래딩 (n = ${nBot.toFixed(3)})`, 15, y2 + w_px/2 + 14);
     
-    // Draw axis arrows & coordinate system details
     drawAxes();
 }
 
-// Draw Coordinate Axes Ticks and Labels (linked to physical scale and user parameters)
 function drawAxes() {
-    // 1. Y Axis Ticks & Labels (Transverse axis)
-    // Draw vertical axis line at x = 40px
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 1.0;
     ctx.beginPath();
@@ -344,7 +322,6 @@ function drawAxes() {
     ctx.lineTo(40, 350);
     ctx.stroke();
     
-    // Draw tick marks and labels
     const yTicks = [20, 100, 180, 260, 340];
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.font = '9px Fira Code, monospace';
@@ -352,34 +329,27 @@ function drawAxes() {
     ctx.textBaseline = 'middle';
     
     yTicks.forEach(y => {
-        // Draw tick mark line (horizontal, 6px wide)
         ctx.beginPath();
         ctx.moveTo(34, y);
         ctx.lineTo(40, y);
         ctx.stroke();
         
-        // Calculate physical Y coordinate in um: (y - 180) / pixelScaleY
         let y_um = (y - 180) / pixelScaleY;
-        // Format with sign and 1 decimal place (except 0)
         let labelText = Math.abs(y_um) < 0.001 ? '0.0' : (y_um > 0 ? '+' : '') + y_um.toFixed(1);
         ctx.fillText(labelText + ' μm', 30, y);
     });
     
-    // Label for Y Axis at the top
     ctx.textAlign = 'left';
     ctx.font = 'bold 10px Inter';
     ctx.fillStyle = '#ffffff';
     ctx.fillText('y (수직 횡방향)', 10, 15);
     
-    // 2. X Axis Ticks & Labels (Propagation axis)
-    // Draw horizontal axis line at y = 340px
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.beginPath();
     ctx.moveTo(40, 340);
     ctx.lineTo(780, 340);
     ctx.stroke();
     
-    // Draw tick marks and labels
     const xTicks = [40, 220, 400, 580, 760];
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -387,37 +357,30 @@ function drawAxes() {
     ctx.font = '9px Fira Code, monospace';
     
     xTicks.forEach(x => {
-        // Draw tick mark line (vertical, 6px tall)
         ctx.beginPath();
         ctx.moveTo(x, 340);
         ctx.lineTo(x, 346);
         ctx.stroke();
         
-        // Calculate physical X coordinate in um: (x - 40) / pixelScaleX
         let x_um = (x - 40) / pixelScaleX;
         ctx.fillText(x_um.toFixed(0) + ' μm', x, 348);
     });
     
-    // Label for X Axis at the right end
     ctx.textAlign = 'right';
     ctx.font = 'bold 10px Inter';
     ctx.fillStyle = '#ffffff';
     ctx.fillText('x (진행 방향) →', 780, 325);
 }
 
-// Helper to write a 2x2 pixel block into the ImageData array
 function draw2x2Block(data, x, y, width, r, g, b) {
     const idx1 = (y * width + x) * 4;
     const idx2 = ((y + 1) * width + x) * 4;
-    
     data[idx1] = r; data[idx1+1] = g; data[idx1+2] = b; data[idx1+3] = 255;
     data[idx1+4] = r; data[idx1+5] = g; data[idx1+6] = b; data[idx1+7] = 255;
-    
     data[idx2] = r; data[idx2+1] = g; data[idx2+2] = b; data[idx2+3] = 255;
     data[idx2+4] = r; data[idx2+5] = g; data[idx2+6] = b; data[idx2+7] = 255;
 }
 
-// Draw Longitudinal Power Density Graph along x axis
 function drawPowerGraph(probeX) {
     const w = graphCanvas.width;
     const h = graphCanvas.height;
@@ -425,7 +388,6 @@ function drawPowerGraph(probeX) {
     gCtx.fillStyle = '#040711';
     gCtx.fillRect(0, 0, w, h);
     
-    // Draw Grid Lines
     gCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
     gCtx.lineWidth = 1;
     for (let i = 0; i <= 2; i++) {
@@ -454,60 +416,48 @@ function drawPowerGraph(probeX) {
     gCtx.fillText('0.5', 15, h * 0.53);
     gCtx.fillText('0.0', 15, h * 0.88);
     
-    // Plot lines
     gCtx.lineWidth = 2.5;
-    
     const delta = window.g_delta;
     const q = window.g_q;
     
-    // 1. WG1 Power Curve (Continuous spatial power flow along x)
-    gCtx.strokeStyle = '#38bdf8'; // Cyan
+    gCtx.strokeStyle = '#38bdf8'; 
     gCtx.beginPath();
     for (let x = 40; x < w - 20; x++) {
         let x_um = ((x - 40) / (w - 60)) * 400;
         let p1 = Math.pow(Math.cos(q * x_um), 2) + Math.pow(delta / q, 2) * Math.pow(Math.sin(q * x_um), 2);
-        
         let y_px = h * 0.85 - p1 * (h * 0.7);
         if (x === 40) gCtx.moveTo(x, y_px);
         else gCtx.lineTo(x, y_px);
     }
     gCtx.stroke();
     
-    // 2. WG2 Power Curve
-    gCtx.strokeStyle = '#f43f5e'; // Pink
+    gCtx.strokeStyle = '#f43f5e'; 
     gCtx.beginPath();
     for (let x = 40; x < w - 20; x++) {
         let x_um = ((x - 40) / (w - 60)) * 400;
         let p2 = Math.pow(kappa / q, 2) * Math.pow(Math.sin(q * x_um), 2);
-        
         let y_px = h * 0.85 - p2 * (h * 0.7);
         if (x === 40) gCtx.moveTo(x, y_px);
         else gCtx.lineTo(x, y_px);
     }
     gCtx.stroke();
     
-    // --- Calculate dynamic marker points along the waveguide length ---
     let peakPoints = [];
     let returnPoints = [];
     let crossPoints = [];
     let maxPowerWG2 = (kappa * kappa) / (q * q);
     
     if (q > 0) {
-        // A. Peak energy transfer points to WG2
         for (let n = 0; n < 8; n++) {
             let x_val = (2 * n + 1) * Math.PI / (2 * q);
             if (x_val > 400.0) break;
             peakPoints.push(x_val);
         }
-        
-        // B. Complete power return points to WG1 (P1 = 1.0)
         for (let n = 1; n < 8; n++) {
             let x_val = n * Math.PI / q;
             if (x_val > 400.0) break;
             returnPoints.push(x_val);
         }
-        
-        // C. 50:50 power crossover points (P1 = P2 = 0.5)
         if (kappa > 0 && maxPowerWG2 >= 0.5) {
             let ratio = q / (Math.sqrt(2) * kappa);
             if (ratio <= 1.0) {
@@ -515,7 +465,6 @@ function drawPowerGraph(probeX) {
                 for (let n = 0; n < 8; n++) {
                     let x1 = (base_asin + n * Math.PI) / q;
                     if (x1 <= 400.0) crossPoints.push(x1);
-                    
                     let x2 = (Math.PI - base_asin + n * Math.PI) / q;
                     if (x2 <= 400.0) crossPoints.push(x2);
                 }
@@ -524,14 +473,11 @@ function drawPowerGraph(probeX) {
         }
     }
     
-    // --- Draw Crossover (50:50) Point Indicators ---
     gCtx.lineWidth = 1;
     if (crossPoints.length > 0) {
         crossPoints.slice(0, 3).forEach(x_val => {
             let x_px = 40 + (x_val / 400) * (w - 60);
-            
-            // Vertical dotted indicator
-            gCtx.strokeStyle = 'rgba(168, 85, 247, 0.5)'; // Purple
+            gCtx.strokeStyle = 'rgba(168, 85, 247, 0.5)';
             gCtx.setLineDash([2, 2]);
             gCtx.beginPath();
             gCtx.moveTo(x_px, h * 0.15);
@@ -539,16 +485,13 @@ function drawPowerGraph(probeX) {
             gCtx.stroke();
             gCtx.setLineDash([]);
             
-            // Intersection marker circle (at y corresponding to 0.5 power)
             gCtx.fillStyle = '#ffffff';
             gCtx.beginPath();
             gCtx.arc(x_px, h * 0.5, 3.5, 0, 2 * Math.PI);
             gCtx.fill();
             gCtx.strokeStyle = '#a855f7';
-            gCtx.lineWidth = 1;
             gCtx.stroke();
             
-            // Text Label
             gCtx.fillStyle = '#e9d5ff';
             gCtx.font = 'bold 8px Fira Code, monospace';
             gCtx.textAlign = 'center';
@@ -556,13 +499,10 @@ function drawPowerGraph(probeX) {
         });
     }
     
-    // --- Draw Peak Energy Transfer Points (P2 Max) ---
     peakPoints.slice(0, 2).forEach(x_val => {
         let x_px = 40 + (x_val / 400) * (w - 60);
         let y_px = h * 0.85 - maxPowerWG2 * (h * 0.7);
-        
-        // Vertical line
-        gCtx.strokeStyle = 'rgba(244, 63, 94, 0.4)'; // Pink
+        gCtx.strokeStyle = 'rgba(244, 63, 94, 0.4)';
         gCtx.setLineDash([2, 3]);
         gCtx.beginPath();
         gCtx.moveTo(x_px, h * 0.15);
@@ -570,13 +510,11 @@ function drawPowerGraph(probeX) {
         gCtx.stroke();
         gCtx.setLineDash([]);
         
-        // Marker circle at peak
         gCtx.fillStyle = '#f43f5e';
         gCtx.beginPath();
         gCtx.arc(x_px, y_px, 3.5, 0, 2 * Math.PI);
         gCtx.fill();
         
-        // Text Label
         gCtx.fillStyle = '#fecdd3';
         gCtx.font = 'bold 8px Fira Code, monospace';
         gCtx.textAlign = 'center';
@@ -584,12 +522,9 @@ function drawPowerGraph(probeX) {
         gCtx.fillText(`${x_val.toFixed(1)}μm(${label})`, x_px, h * 0.9);
     });
     
-    // --- Draw Return Points (P1 = 1.0) ---
     returnPoints.slice(0, 2).forEach(x_val => {
         let x_px = 40 + (x_val / 400) * (w - 60);
-        
-        // Vertical line
-        gCtx.strokeStyle = 'rgba(56, 189, 248, 0.4)'; // Cyan
+        gCtx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
         gCtx.setLineDash([2, 3]);
         gCtx.beginPath();
         gCtx.moveTo(x_px, h * 0.15);
@@ -597,20 +532,17 @@ function drawPowerGraph(probeX) {
         gCtx.stroke();
         gCtx.setLineDash([]);
         
-        // Marker circle at P1 peak (y corresponding to 1.0)
         gCtx.fillStyle = '#38bdf8';
         gCtx.beginPath();
         gCtx.arc(x_px, h * 0.15, 3.5, 0, 2 * Math.PI);
         gCtx.fill();
         
-        // Text Label
         gCtx.fillStyle = '#bae6fd';
         gCtx.font = 'bold 8px Fira Code, monospace';
         gCtx.textAlign = 'center';
         gCtx.fillText(`${x_val.toFixed(1)}μm(P₁=1.0)`, x_px, h * 0.06);
     });
     
-    // 3. Draw Vertical Probe Position Indicator in the Power Graph
     let probeX_graph_px = 40 + (probeX / 400) * (w - 60);
     gCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
     gCtx.lineWidth = 1;
@@ -621,50 +553,40 @@ function drawPowerGraph(probeX) {
     gCtx.stroke();
     gCtx.setLineDash([]);
     
-    // --- Draw Paused State Local Power Markers & Labels ---
     if (!isPlaying) {
         let p1_val = Math.pow(Math.cos(q * probeX), 2) + Math.pow(delta / q, 2) * Math.pow(Math.sin(q * probeX), 2);
         let p2_val = Math.pow(kappa / q, 2) * Math.pow(Math.sin(q * probeX), 2);
-        
         let y_p1_px = h * 0.85 - p1_val * (h * 0.7);
         let y_p2_px = h * 0.85 - p2_val * (h * 0.7);
         
-        // WG1 paused marker
-        gCtx.fillStyle = '#38bdf8'; // Cyan outer ring
+        gCtx.fillStyle = '#38bdf8';
         gCtx.beginPath();
         gCtx.arc(probeX_graph_px, y_p1_px, 5.5, 0, 2 * Math.PI);
         gCtx.fill();
-        gCtx.fillStyle = '#ffffff'; // White inner core
+        gCtx.fillStyle = '#ffffff';
         gCtx.beginPath();
         gCtx.arc(probeX_graph_px, y_p1_px, 2.0, 0, 2 * Math.PI);
         gCtx.fill();
         
-        // WG2 paused marker
-        gCtx.fillStyle = '#f43f5e'; // Pink outer ring
+        gCtx.fillStyle = '#f43f5e';
         gCtx.beginPath();
         gCtx.arc(probeX_graph_px, y_p2_px, 5.5, 0, 2 * Math.PI);
         gCtx.fill();
-        gCtx.fillStyle = '#ffffff'; // White inner core
+        gCtx.fillStyle = '#ffffff';
         gCtx.beginPath();
         gCtx.arc(probeX_graph_px, y_p2_px, 2.0, 0, 2 * Math.PI);
         gCtx.fill();
         
-        // Text labels for the exact power values
         gCtx.font = 'bold 9px Fira Code, monospace';
         gCtx.textAlign = 'left';
-        
-        // Shift text vertically to prevent overlaps near crossover points
         let offsetP1 = (y_p1_px < y_p2_px) ? -6 : 12;
         let offsetP2 = (y_p2_px < y_p1_px) ? -6 : 12;
-        
-        gCtx.fillStyle = '#bae6fd'; // Cyan label text
+        gCtx.fillStyle = '#bae6fd';
         gCtx.fillText(`P₁:${p1_val.toFixed(3)}`, probeX_graph_px + 8, y_p1_px + offsetP1);
-        
-        gCtx.fillStyle = '#fecdd3'; // Pink label text
+        gCtx.fillStyle = '#fecdd3';
         gCtx.fillText(`P₂:${p2_val.toFixed(3)}`, probeX_graph_px + 8, y_p2_px + offsetP2);
     }
     
-    // Legend labels
     gCtx.font = 'bold 9px Inter';
     gCtx.fillStyle = '#38bdf8';
     gCtx.fillText('도파로 1 전력 (WG1 Power)', w - 160, h * 0.25);
@@ -672,28 +594,11 @@ function drawPowerGraph(probeX) {
     gCtx.fillText('도파로 2 전력 (WG2 Power)', w - 160, h * 0.38);
 }
 
-// Main Simulation Loop
-function tick() {
-    if (isPlaying) {
-        time += 0.05 * speed;
-    }
-    
-    // Auto-propagate probeX from left (0 um) to right (400 um) over time
-    let probeX = (time * 10) % 400;
-    
-    drawElectricField(time, probeX);
-    drawPowerGraph(probeX);
-    
-    requestAnimationFrame(tick);
-}
-
-// Helper function to bind sliders with numeric input fields and apply buttons
 function bindParam(sliderId, inputId, applyBtnId, minVal, maxVal, isInt, updateVarFn) {
     const slider = document.getElementById(sliderId);
     const input = document.getElementById(inputId);
     const btn = document.getElementById(applyBtnId);
     
-    // Sync slider changes to numerical text field instantly during dragging
     slider.addEventListener('input', (e) => {
         let val = parseFloat(e.target.value);
         input.value = isInt ? val.toFixed(0) : val.toFixed(3);
@@ -701,26 +606,19 @@ function bindParam(sliderId, inputId, applyBtnId, minVal, maxVal, isInt, updateV
         updatePhysics();
     });
     
-    // Apply typed value on button click or Enter keypress
     function applyManualValue() {
         let val = parseFloat(input.value);
         if (isNaN(val)) return;
         
-        // Guard boundaries
         val = Math.max(minVal, Math.min(maxVal, val));
         input.value = isInt ? val.toFixed(0) : val.toFixed(3);
-        
-        // Sync slider position if it lies within the slider's track bounds
-        let sliderMin = parseFloat(slider.min);
-        let sliderMax = parseFloat(slider.max);
-        slider.value = Math.max(sliderMin, Math.min(sliderMax, val));
+        slider.value = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), val));
         
         updateVarFn(val);
         updatePhysics();
     }
     
     btn.addEventListener('click', applyManualValue);
-    
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             applyManualValue();
@@ -728,7 +626,6 @@ function bindParam(sliderId, inputId, applyBtnId, minVal, maxVal, isInt, updateV
     });
 }
 
-// Slider event listeners & display updates
 function setupSliders() {
     bindParam('slider-gap', 'input-gap', 'btn-apply-gap', 1.0, 100.0, false, (v) => { gap = v; });
     bindParam('slider-width', 'input-width', 'btn-apply-width', 0.1, 100.0, false, (v) => { width = v; });
@@ -739,7 +636,6 @@ function setupSliders() {
     bindParam('slider-nmid', 'input-nmid', 'btn-apply-nmid', 1.0, 4.0, false, (v) => { nMid = v; });
     bindParam('slider-nbot', 'input-nbot', 'btn-apply-nbot', 1.0, 4.0, false, (v) => { nBot = v; });
     
-    // Speed slider
     sliderSpeed.addEventListener('input', (e) => {
         speed = parseFloat(e.target.value);
         valSpeed.textContent = `${speed.toFixed(1)}x`;
@@ -769,21 +665,520 @@ function setupControls() {
         sliderNmid.value = 1.450; document.getElementById('input-nmid').value = '1.450'; nMid = 1.450;
         sliderNbot.value = 1.450; document.getElementById('input-nbot').value = '1.450'; nBot = 1.450;
         sliderSpeed.value = 1.0; valSpeed.textContent = '1.0x'; speed = 1.0;
-        
         isPlaying = true;
         playIcon.style.display = 'none';
         pauseIcon.style.display = 'inline';
-        
         updatePhysics();
     });
 }
 
-// Initialise Application
+// ----------------------------------------------------
+// PART 2: 3D Slab/Rib EIM Waveguide Solver
+// ----------------------------------------------------
+const canvas3D = document.getElementById('canvas-3d');
+const ctx3D = canvas3D.getContext('2d');
+const cutlinesCanvas = document.getElementById('canvas-3d-cutlines');
+const cutCtx = cutlinesCanvas.getContext('2d');
+
+let wgType3D = 'rib'; 
+let width3D = 3.0;     
+let height3D = 2.0;    
+let slab3D = 0.8;      
+let lambda3D = 1.55;   
+let nCore3D = 1.500;   
+let nCover3D = 1.000;  
+let nSub3D = 1.450;    
+
+let nEff3D = 0.0;
+let cutoff3D = false;
+
+// 2D grids precalculated profiles
+let G_I = [];  
+let G_II = []; 
+let F_y = [];  
+let kz1_3d, kz2_3d, ky_3d;
+let gCover1_3d, gSub1_3d, gCover2_3d, gSub2_3d, gY_3d;
+let phi01_3d, phi02_3d;
+
+// Bisection slab solver helper
+function solveSlab3D(nCore, nCladL, nCladR, thickness, wavelength) {
+    let k0_val = 2 * Math.PI / wavelength;
+    let cladMax = Math.max(nCladL, nCladR);
+    if (nCore <= cladMax) return null;
+    
+    let low = k0_val * cladMax + 0.0001;
+    let high = k0_val * nCore - 0.0001;
+    let beta = null;
+    
+    for (let i = 0; i < 24; i++) {
+        let mid = (low + high) / 2;
+        let kx = Math.sqrt(k0_val*k0_val*nCore*nCore - mid*mid);
+        let gL = Math.sqrt(mid*mid - k0_val*k0_val*nCladL*nCladL);
+        let gR = Math.sqrt(mid*mid - k0_val*k0_val*nCladR*nCladR);
+        
+        let val = kx * thickness - Math.atan(gL / kx) - Math.atan(gR / kx);
+        if (val > 0) {
+            low = mid;
+            beta = mid;
+        } else {
+            high = mid;
+        }
+    }
+    return beta;
+}
+
+function updatePhysics3D() {
+    // Validations
+    let cladMax = Math.max(nCover3D, nSub3D);
+    if (nCore3D <= cladMax) {
+        nCore3D = cladMax + 0.005;
+        document.getElementById('slider-3d-ncore').value = nCore3D;
+        document.getElementById('input-3d-ncore').value = nCore3D.toFixed(3);
+    }
+    
+    if (slab3D > height3D) {
+        slab3D = height3D;
+        document.getElementById('slider-3d-slab').value = slab3D;
+        document.getElementById('input-3d-slab').value = slab3D.toFixed(1);
+    }
+    
+    const k0_3d = 2 * Math.PI / lambda3D;
+    
+    // Step 1: Vertical Slab I (Center thickness H)
+    let beta_I = solveSlab3D(nCore3D, nCover3D, nSub3D, height3D, lambda3D);
+    let nEff_I = beta_I ? beta_I / k0_3d : nSub3D;
+    
+    // Step 2: Vertical Slab II (Slab wing height h)
+    let nEff_II = nSub3D;
+    let beta_II = null;
+    
+    if (wgType3D === 'rib' && slab3D > 0.02) {
+        beta_II = solveSlab3D(nCore3D, nCover3D, nSub3D, slab3D, lambda3D);
+        if (beta_II) {
+            nEff_II = beta_II / k0_3d;
+        }
+    }
+    
+    // Step 3: Horizontal Slab (Width W, core nEff_I, cladding nEff_II)
+    let beta_final = null;
+    if (beta_I && nEff_I > nEff_II) {
+        beta_final = solveSlab3D(nEff_I, nEff_II, nEff_II, width3D, lambda3D);
+    }
+    
+    if (beta_final) {
+        cutoff3D = false;
+        nEff3D = beta_final / k0_3d;
+        document.getElementById('val-3d-neff').textContent = nEff3D.toFixed(4);
+        document.getElementById('val-3d-status').textContent = '도파 모드 존재';
+        document.getElementById('val-3d-status').style.color = '#22c55e'; // Green
+        
+        // Solve structural waves parameters for profiles
+        kz1_3d = Math.sqrt(k0_3d*k0_3d*nCore3D*nCore3D - beta_I*beta_I);
+        gCover1_3d = Math.sqrt(beta_I*beta_I - k0_3d*k0_3d*nCover3D*nCover3D);
+        gSub1_3d = Math.sqrt(beta_I*beta_I - k0_3d*k0_3d*nSub3D*nSub3D);
+        phi01_3d = 0.5 * (Math.atan(gCover1_3d / kz1_3d) - Math.atan(gSub1_3d / kz1_3d));
+
+        if (beta_II) {
+            kz2_3d = Math.sqrt(k0_3d*k0_3d*nCore3D*nCore3D - beta_II*beta_II);
+            gCover2_3d = Math.sqrt(beta_II*beta_II - k0_3d*k0_3d*nCover3D*nCover3D);
+            gSub2_3d = Math.sqrt(beta_II*beta_II - k0_3d*k0_3d*nSub3D*nSub3D);
+            phi02_3d = 0.5 * (Math.atan(gCover2_3d / kz2_3d) - Math.atan(gSub2_3d / kz2_3d));
+        }
+        
+        ky_3d = Math.sqrt(k0_3d*k0_3d*nEff_I*nEff_I - beta_final*beta_final);
+        gY_3d = Math.sqrt(beta_final*beta_final - k0_3d*k0_3d*nEff_II*nEff_II);
+        
+        precompute3DProfiles();
+    } else {
+        cutoff3D = true;
+        document.getElementById('val-3d-neff').textContent = 'N/A';
+        document.getElementById('val-3d-status').textContent = '차단됨 (Cutoff)';
+        document.getElementById('val-3d-status').style.color = '#ef4444'; // Red
+    }
+    
+    render3D();
+}
+
+function precompute3DProfiles() {
+    const h_px = canvas3D.height;
+    const w_px = canvas3D.width;
+    
+    G_I = new Array(h_px);
+    G_II = new Array(h_px);
+    F_y = new Array(w_px);
+    
+    // 1D vertical Region I profile
+    for (let z_px = 0; z_px < h_px; z_px++) {
+        let z_um = (260 - z_px) / 60.0;
+        if (z_um >= 0 && z_um <= height3D) {
+            G_I[z_px] = Math.cos(kz1_3d * z_um - phi01_3d);
+        } else if (z_um < 0) {
+            G_I[z_px] = Math.cos(phi01_3d) * Math.exp(gSub1_3d * z_um);
+        } else {
+            G_I[z_px] = Math.cos(kz1_3d * height3D - phi01_3d) * Math.exp(-gCover1_3d * (z_um - height3D));
+        }
+    }
+    
+    // 1D vertical Region II profile
+    for (let z_px = 0; z_px < h_px; z_px++) {
+        let z_um = (260 - z_px) / 60.0;
+        if (wgType3D === 'rib' && kz2_3d) {
+            if (z_um >= 0 && z_um <= slab3D) {
+                G_II[z_px] = Math.cos(kz2_3d * z_um - phi02_3d);
+            } else if (z_um < 0) {
+                G_II[z_px] = Math.cos(phi02_3d) * Math.exp(gSub2_3d * z_um);
+            } else {
+                G_II[z_px] = Math.cos(kz2_3d * slab3D - phi02_3d) * Math.exp(-gCover2_3d * (z_um - slab3D));
+            }
+        } else {
+            // For ridge/strip with no slab, exponential decay into air/cladding from substrate z=0
+            if (z_um < 0) {
+                G_II[z_px] = Math.exp(gSub1_3d * z_um);
+            } else {
+                G_II[z_px] = Math.exp(-gCover1_3d * z_um);
+            }
+        }
+    }
+    
+    // 1D horizontal profile F(y)
+    for (let y_px = 0; y_px < w_px; y_px++) {
+        let y_um = (y_px - 400) / 60.0;
+        if (Math.abs(y_um) <= width3D / 2) {
+            F_y[y_px] = Math.cos(ky_3d * y_um);
+        } else {
+            F_y[y_px] = Math.cos(ky_3d * width3D / 2) * Math.exp(-gY_3d * (Math.abs(y_um) - width3D / 2));
+        }
+    }
+}
+
+function render3D() {
+    const w = canvas3D.width;
+    const h = canvas3D.height;
+    
+    if (cutoff3D) {
+        ctx3D.fillStyle = '#040711';
+        ctx3D.fillRect(0, 0, w, h);
+        ctx3D.fillStyle = '#ef4444';
+        ctx3D.font = 'bold 16px Inter';
+        ctx3D.textAlign = 'center';
+        ctx3D.fillText('도파로 차단 조건 (No Guided Mode)', w / 2, h / 2);
+        
+        // Draw blank cutlines graph
+        cutCtx.fillStyle = '#040711';
+        cutCtx.fillRect(0, 0, cutlinesCanvas.width, cutlinesCanvas.height);
+        return;
+    }
+    
+    const imgData = ctx3D.createImageData(w, h);
+    const data = imgData.data;
+    
+    // 1. Draw 2D EIM mode profile heatmap
+    for (let x = 0; x < w; x += 2) {
+        let y_um = (x - 400) / 60.0;
+        let F = F_y[x];
+        
+        for (let y = 0; y < h; y += 2) {
+            let G = (Math.abs(y_um) <= width3D / 2) ? G_I[y] : G_II[y];
+            let E = F * G;
+            
+            let r = 8, g = 12, b = 22; // Base dark blue background
+            
+            if (E > 0.01) {
+                let amt = Math.min(1.0, E) * 230;
+                r = Math.round(r + amt * 0.1);
+                g = Math.round(g + amt * 0.85);
+                b = Math.round(b + amt * 1.0);
+            } else if (E < -0.01) {
+                let amt = Math.min(1.0, -E) * 230;
+                r = Math.round(r + amt * 1.0);
+                g = Math.round(g + amt * 0.15);
+                b = Math.round(b + amt * 0.7);
+            }
+            
+            draw2x2Block(data, x, y, w, r, g, b);
+        }
+    }
+    ctx3D.putImageData(imgData, 0, 0);
+    
+    // 2. Draw Waveguide geometry boundary overlays (Yellow neon lines)
+    ctx3D.strokeStyle = '#eab308';
+    ctx3D.lineWidth = 2.0;
+    ctx3D.beginPath();
+    
+    let x_left = 400 - (width3D / 2) * 60;
+    let x_right = 400 + (width3D / 2) * 60;
+    let y_sub = 260; // substrate z=0
+    let y_top = 260 - height3D * 60;
+    let y_wing = 260 - slab3D * 60;
+    
+    if (wgType3D === 'rib') {
+        // Substrate horizontal line
+        ctx3D.moveTo(0, y_sub); ctx3D.lineTo(w, y_sub);
+        // Left wing top
+        ctx3D.moveTo(0, y_wing); ctx3D.lineTo(x_left, y_wing);
+        // Left rib vertical wall
+        ctx3D.lineTo(x_left, y_top);
+        // Rib center top
+        ctx3D.lineTo(x_right, y_top);
+        // Right rib vertical wall
+        ctx3D.lineTo(x_right, y_wing);
+        // Right wing top
+        ctx3D.lineTo(w, y_wing);
+    } else {
+        // Ridge/Strip waveguide
+        ctx3D.moveTo(0, y_sub); ctx3D.lineTo(x_left, y_sub);
+        ctx3D.lineTo(x_left, y_top);
+        ctx3D.lineTo(x_right, y_top);
+        ctx3D.lineTo(x_right, y_sub);
+        ctx3D.lineTo(w, y_sub);
+    }
+    ctx3D.stroke();
+    
+    // Draw 3D coordinate system ticks and units
+    draw3DCoords(x_left, x_right, y_sub, y_top, y_wing);
+    
+    // 3. Render 1D Cutlines Graph
+    render3DCutlines();
+}
+
+function draw3DCoords(x_left, x_right, y_sub, y_top, y_wing) {
+    ctx3D.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx3D.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx3D.lineWidth = 1.0;
+    ctx3D.font = '9px Fira Code, monospace';
+    
+    // Y-axis (transverse horizontal axis ticks at bottom)
+    ctx3D.beginPath();
+    ctx3D.moveTo(40, 340);
+    ctx3D.lineTo(760, 340);
+    ctx3D.stroke();
+    
+    const ticksY = [-5, -3, -1, 0, 1, 3, 5];
+    ticksY.forEach(val => {
+        let x_px = 400 + val * 60;
+        ctx3D.beginPath();
+        ctx3D.moveTo(x_px, 340);
+        ctx3D.lineTo(x_px, 345);
+        ctx3D.stroke();
+        
+        ctx3D.textAlign = 'center';
+        ctx3D.fillText(val + 'μm', x_px, 355);
+    });
+    
+    // Z-axis (transverse vertical axis ticks at left)
+    ctx3D.beginPath();
+    ctx3D.moveTo(40, 40);
+    ctx3D.lineTo(40, 340);
+    ctx3D.stroke();
+    
+    const ticksZ = [-1.0, 0, 1.0, 2.0, 3.0];
+    ticksZ.forEach(val => {
+        let y_px = 260 - val * 60;
+        ctx3D.beginPath();
+        ctx3D.moveTo(35, y_px);
+        ctx3D.lineTo(40, y_px);
+        ctx3D.stroke();
+        
+        ctx3D.textAlign = 'right';
+        ctx3D.textBaseline = 'middle';
+        ctx3D.fillText(val.toFixed(1) + 'μm', 30, y_px);
+    });
+    
+    // Text labels
+    ctx3D.fillStyle = '#ffffff';
+    ctx3D.font = 'bold 10px Inter';
+    ctx3D.textAlign = 'left';
+    ctx3D.fillText('z (수직 가이드 축)', 10, 30);
+    ctx3D.textAlign = 'right';
+    ctx3D.fillText('y (수평 가이드 축) →', 780, 325);
+    
+    // Overlay labels for Rib dimensions
+    ctx3D.fillStyle = '#eab308';
+    ctx3D.font = '9px Inter';
+    ctx3D.textAlign = 'center';
+    ctx3D.fillText(`W = ${width3D.toFixed(1)} μm`, 400, y_top - 6);
+    
+    ctx3D.textAlign = 'left';
+    ctx3D.fillText(`H = ${height3D.toFixed(1)} μm`, x_right + 6, y_top + (y_sub - y_top)/2);
+    if (wgType3D === 'rib') {
+        ctx3D.fillText(`h = ${slab3D.toFixed(1)} μm`, x_right + 35, y_wing + (y_sub - y_wing)/2);
+    }
+}
+
+function render3DCutlines() {
+    const w = cutlinesCanvas.width;
+    const h = cutlinesCanvas.height;
+    
+    cutCtx.fillStyle = '#040711';
+    cutCtx.fillRect(0, 0, w, h);
+    
+    // Draw Grid Lines
+    cutCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    cutCtx.lineWidth = 1;
+    for (let i = 0; i <= 2; i++) {
+        let y_px = h * 0.15 + (i * h * 0.35);
+        cutCtx.beginPath();
+        cutCtx.moveTo(40, y_px);
+        cutCtx.lineTo(w - 20, y_px);
+        cutCtx.stroke();
+    }
+    
+    // Draw horizontal ticks (-5 to 5 um)
+    for (let val = -5; val <= 5; val += 2) {
+        let x_px = 40 + ((val + 5) / 10) * (w - 60);
+        cutCtx.beginPath();
+        cutCtx.moveTo(x_px, h * 0.15);
+        cutCtx.lineTo(x_px, h * 0.85);
+        cutCtx.stroke();
+        
+        cutCtx.fillStyle = 'rgba(255,255,255,0.3)';
+        cutCtx.font = '8px Fira Code';
+        cutCtx.textAlign = 'center';
+        cutCtx.fillText(`${val}um`, x_px, h * 0.94);
+    }
+    
+    cutCtx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    gCtx.textAlign = 'right';
+    cutCtx.font = '8px Fira Code';
+    cutCtx.fillText('1.0', 25, h * 0.18);
+    cutCtx.fillText('0.5', 25, h * 0.53);
+    cutCtx.fillText('0.0', 25, h * 0.88);
+    
+    // Plot Cutlines
+    // 1. Horizontal Cutline: E(y, z = H/2) -> plotted along Y in cyan
+    cutCtx.strokeStyle = '#38bdf8'; // Cyan
+    cutCtx.lineWidth = 2;
+    cutCtx.beginPath();
+    
+    const center_z_px = Math.round(260 - (height3D / 2) * 60);
+    const G_val = G_I[center_z_px];
+    
+    for (let x = 40; x < w - 20; x++) {
+        let x_canvas = 400 + ((x - 40) / (w - 60) * 10 - 5) * 60; // maps graph x coordinate to 3d canvas x pixel
+        x_canvas = Math.max(0, Math.min(canvas3D.width - 1, Math.round(x_canvas)));
+        
+        let F = F_y[x_canvas];
+        let E_val = F * G_val;
+        
+        let y_px = h * 0.85 - Math.abs(E_val) * (h * 0.7); // absolute field profile
+        if (x === 40) cutCtx.moveTo(x, y_px);
+        else cutCtx.lineTo(x, y_px);
+    }
+    cutCtx.stroke();
+    
+    // 2. Vertical Cutline: E(y = 0, z) -> plotted along Y in pink
+    cutCtx.strokeStyle = '#f43f5e'; // Pink
+    cutCtx.beginPath();
+    
+    const F_center = F_y[400]; // at y = 0
+    
+    for (let x = 40; x < w - 20; x++) {
+        let z_um = ((x - 40) / (w - 60)) * 4.5 - 1.5; // maps graph x [40, w-20] to z [-1.5, 3.0] um
+        let z_px = Math.round(260 - z_um * 60);
+        z_px = Math.max(0, Math.min(canvas3D.height - 1, z_px));
+        
+        let G = G_I[z_px];
+        let E_val = F_center * G;
+        
+        let y_px = h * 0.85 - Math.abs(E_val) * (h * 0.7);
+        if (x === 40) cutCtx.moveTo(x, y_px);
+        else cutCtx.lineTo(x, y_px);
+    }
+    cutCtx.stroke();
+    
+    // Legend
+    cutCtx.font = 'bold 9px Inter';
+    cutCtx.fillStyle = '#38bdf8';
+    cutCtx.textAlign = 'left';
+    cutCtx.fillText('수평 단면 프로파일 E(y, z=H/2)', w - 200, h * 0.25);
+    cutCtx.fillStyle = '#f43f5e';
+    cutCtx.fillText('수직 단면 프로파일 E(y=0, z)', w - 200, h * 0.38);
+}
+
+function bindParam3D(sliderId, inputId, applyBtnId, minVal, maxVal, isInt, updateVarFn) {
+    const slider = document.getElementById(sliderId);
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(applyBtnId);
+    
+    slider.addEventListener('input', (e) => {
+        let val = parseFloat(e.target.value);
+        input.value = isInt ? val.toFixed(0) : val.toFixed(3);
+        updateVarFn(val);
+        updatePhysics3D();
+    });
+    
+    function applyManualValue() {
+        let val = parseFloat(input.value);
+        if (isNaN(val)) return;
+        
+        val = Math.max(minVal, Math.min(maxVal, val));
+        input.value = isInt ? val.toFixed(0) : val.toFixed(3);
+        slider.value = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), val));
+        
+        updateVarFn(val);
+        updatePhysics3D();
+    }
+    
+    btn.addEventListener('click', applyManualValue);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            applyManualValue();
+        }
+    });
+}
+
+function setupSliders3D() {
+    bindParam3D('slider-3d-width', 'input-3d-width', 'btn-apply-3d-width', 0.5, 10.0, false, (v) => { width3D = v; });
+    bindParam3D('slider-3d-height', 'input-3d-height', 'btn-apply-3d-height', 0.5, 5.0, false, (v) => { height3D = v; });
+    bindParam3D('slider-3d-slab', 'input-3d-slab', 'btn-apply-3d-slab', 0.0, 4.0, false, (v) => { slab3D = v; });
+    bindParam3D('slider-3d-lambda', 'input-3d-lambda', 'btn-apply-3d-lambda', 0.5, 2.5, false, (v) => { lambda3D = v; });
+    bindParam3D('slider-3d-ncore', 'input-3d-ncore', 'btn-apply-3d-ncore', 1.0, 4.0, false, (v) => { nCore3D = v; });
+    bindParam3D('slider-3d-ncover', 'input-3d-ncover', 'btn-apply-3d-ncover', 1.0, 4.0, false, (v) => { nCover3D = v; });
+    bindParam3D('slider-3d-nsub', 'input-3d-nsub', 'btn-apply-3d-nsub', 1.0, 4.0, false, (v) => { nSub3D = v; });
+    
+    // Dropdown change listener
+    document.getElementById('select-wg-type').addEventListener('change', (e) => {
+        wgType3D = e.target.value;
+        const slabGroup = document.getElementById('group-3d-slab');
+        if (wgType3D === 'ridge') {
+            slabGroup.style.display = 'none';
+            slab3D = 0.0;
+        } else {
+            slabGroup.style.display = 'block';
+            slab3D = parseFloat(document.getElementById('slider-3d-slab').value);
+        }
+        document.getElementById('badge-mode-type').textContent = wgType3D === 'rib' ? 'Rib Waveguide (Fundamental Mode)' : 'Strip Waveguide (Fundamental Mode)';
+        updatePhysics3D();
+    });
+}
+
+// ----------------------------------------------------
+// PART 3: Simulation Loop Integration
+// ----------------------------------------------------
+function tick() {
+    if (activeTab === 'coupled') {
+        if (isPlaying) {
+            time += 0.05 * speed;
+        }
+        let currentProbeX = (time * 10) % 400;
+        drawElectricField(time, currentProbeX);
+        drawPowerGraph(currentProbeX);
+    }
+    // EIM 3D simulation does not require active time-based updates, 
+    // it computes statically upon parameter slider modification.
+    
+    requestAnimationFrame(tick);
+}
+
+// Initialise application components
 updatePhysics();
 setupSliders();
 setupControls();
 
-// Start Sim loop
+setupSliders3D();
+updatePhysics3D();
+
+// Run simulator loop
 playIcon.style.display = 'none';
 pauseIcon.style.display = 'inline';
 tick();

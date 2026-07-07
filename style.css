@@ -601,3 +601,75 @@ input[type="range"]::-webkit-slider-thumb:hover {
     display: inline-block;
     box-shadow: 0 0 4px rgba(255,255,255,0.8);
 }
+
+/* Tabs Navigation Bar Styles */
+.tabs-container {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-stroke);
+    padding-bottom: 1.2rem;
+}
+
+.tab-btn {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-stroke);
+    color: var(--text-secondary);
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.95rem;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+}
+
+.tab-btn:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--primary);
+    border-color: rgba(56, 189, 248, 0.4);
+    transform: translateY(-1px);
+}
+
+.tab-btn.active {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: var(--primary);
+    color: var(--primary);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+    text-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+}
+
+/* Tab Panel Display Visibility Toggle */
+.tab-content {
+    display: none;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.tab-content.active-tab {
+    display: flex; /* simulator-layout flex behavior */
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Custom styles for select dropdown */
+.param-select {
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: border-color 0.2s ease;
+}
+
+.param-select:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 6px rgba(56, 189, 248, 0.25);
+}
