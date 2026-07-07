@@ -621,6 +621,49 @@ function drawPowerGraph(probeX) {
     gCtx.stroke();
     gCtx.setLineDash([]);
     
+    // --- Draw Paused State Local Power Markers & Labels ---
+    if (!isPlaying) {
+        let p1_val = Math.pow(Math.cos(q * probeX), 2) + Math.pow(delta / q, 2) * Math.pow(Math.sin(q * probeX), 2);
+        let p2_val = Math.pow(kappa / q, 2) * Math.pow(Math.sin(q * probeX), 2);
+        
+        let y_p1_px = h * 0.85 - p1_val * (h * 0.7);
+        let y_p2_px = h * 0.85 - p2_val * (h * 0.7);
+        
+        // WG1 paused marker
+        gCtx.fillStyle = '#38bdf8'; // Cyan outer ring
+        gCtx.beginPath();
+        gCtx.arc(probeX_graph_px, y_p1_px, 5.5, 0, 2 * Math.PI);
+        gCtx.fill();
+        gCtx.fillStyle = '#ffffff'; // White inner core
+        gCtx.beginPath();
+        gCtx.arc(probeX_graph_px, y_p1_px, 2.0, 0, 2 * Math.PI);
+        gCtx.fill();
+        
+        // WG2 paused marker
+        gCtx.fillStyle = '#f43f5e'; // Pink outer ring
+        gCtx.beginPath();
+        gCtx.arc(probeX_graph_px, y_p2_px, 5.5, 0, 2 * Math.PI);
+        gCtx.fill();
+        gCtx.fillStyle = '#ffffff'; // White inner core
+        gCtx.beginPath();
+        gCtx.arc(probeX_graph_px, y_p2_px, 2.0, 0, 2 * Math.PI);
+        gCtx.fill();
+        
+        // Text labels for the exact power values
+        gCtx.font = 'bold 9px Fira Code, monospace';
+        gCtx.textAlign = 'left';
+        
+        // Shift text vertically to prevent overlaps near crossover points
+        let offsetP1 = (y_p1_px < y_p2_px) ? -6 : 12;
+        let offsetP2 = (y_p2_px < y_p1_px) ? -6 : 12;
+        
+        gCtx.fillStyle = '#bae6fd'; // Cyan label text
+        gCtx.fillText(`P₁:${p1_val.toFixed(3)}`, probeX_graph_px + 8, y_p1_px + offsetP1);
+        
+        gCtx.fillStyle = '#fecdd3'; // Pink label text
+        gCtx.fillText(`P₂:${p2_val.toFixed(3)}`, probeX_graph_px + 8, y_p2_px + offsetP2);
+    }
+    
     // Legend labels
     gCtx.font = 'bold 9px Inter';
     gCtx.fillStyle = '#38bdf8';
