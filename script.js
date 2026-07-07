@@ -1,4 +1,4 @@
-// Coupled Waveguide Simulator (Asymmetric 5-Layer Waveguide Solver, 2D Field & Propagating 1D Mode Profile)
+// Coupled Waveguide Simulator (Asymmetric 5-Layer Waveguide Solver, Continuous Wave & Auto-Zoom)
 const canvas = document.getElementById('sim-canvas');
 const ctx = canvas.getContext('2d');
 const graphCanvas = document.getElementById('graph-canvas');
@@ -24,9 +24,8 @@ const pauseIcon = btnPlayPause.querySelector('.pause-icon');
 
 // Simulation Constants & Scale Factors
 // Horizontal: x-direction (propagation axis). 800px = 400 um (1 px = 0.5 um, pixelScaleX = 2 px/um)
-// Vertical: y-direction (transverse axis). 360px = 120 um (1 px = 0.33 um, pixelScaleY = 3 px/um)
 const pixelScaleX = 2.0; 
-const pixelScaleY = 3.0;
+let pixelScaleY = 3.0; // Dynamic scale: updated on gap changes for auto-zoom
 
 let isPlaying = true;
 let time = 0;
@@ -43,8 +42,15 @@ let nMid = 1.450;     // Middle cladding index
 let nBot = 1.450;     // Bottom cladding index
 let speed = 1.0;      // Time speed multiplier
 
-// Pulse parameters
-const sigmaPulse = 25.0; // Pulse width in um
+// Interactive Profile Probe tracking
+let trackerX = 200.0; // Probe position in um along the waveguide
+
+// Register mouse move to slide the vertical probe line and inspect the transverse profile
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x_px = e.clientX - rect.left;
+    trackerX = Math.max(0.0, Math.min(400.0, x_px / pixelScaleX));
+});
 
 // Solved constants for Asymmetric waveguide layers
 let k0, kx1, kx2, gTop, gMid1, gMid2, gBot, phi0, psi0, kappa;
@@ -75,7 +81,11 @@ function getGuidedModeCount(nCore, nCladL, nCladR, width_um, lambda_um) {
 
 // Recalculate Physics & Modes
 function updatePhysics() {
-    // 1. Validation for Waveguide 1 (Core 1 must be denser than adjacent claddings)
+    // 1. Auto-Zoom Calculation: scale up Y axis when gap is small, scale down when gap is large
+    // Ensures details in the gap region are always legible and waveguides don't clip off-screen.
+    pixelScaleY = Math.min(8.0, Math.max(2.2, 220 / (width * 2 + gap)));
+
+    // 2. Validation for Waveguide 1 (Core 1 must be denser than adjacent claddings)
     let cladMax1 = Math.max(nTop, nMid);
     if (nCore1 <= cladMax1) {
         nCore1 = cladMax1 + 0.005;
@@ -83,7 +93,7 @@ function updatePhysics() {
         document.getElementById('input-ncore1').value = nCore1.toFixed(3);
     }
     
-    // 2. Validation for Waveguide 2 (Core 2 must be denser than adjacent claddings)
+    // 3. Validation for Waveguide 2 (Core 2 must be denser than adjacent claddings)
     let cladMax2 = Math.max(nMid, nBot);
     if (nCore2 <= cladMax2) {
         nCore2 = cladMax2 + 0.005;
@@ -117,7 +127,7 @@ function updatePhysics() {
     let betaAvg = (beta1 + beta2) / 2;
     let delta = (beta1 - beta2) / 2; // Phase mismatch
     
-    // Coupling coefficient kappa (calculated with average cladding decay in the mid region)
+    // Coupling coefficient kappa
     let gMidAvg = (gMid1 + gMid2) / 2;
     const denominator = Math.sqrt(beta1 * beta2) * (width / 2 + 1 / gTop + 1 / gMid1) * (width / 2 + 1 / gBot + 1 / gMid2);
     kappa = (2 * kx1 * kx2 * gMidAvg * Math.exp(-gMidAvg * gap)) / denominator;
@@ -219,8 +229,8 @@ function precomputeTransverseModes(norm1, norm2) {
     }
 }
 
-// Render electric field: 2D color density map + moving 1D transverse E(y) profile curve + stationary borders
-function drawElectricField(theta, pulseCenter) {
+// Render electric field: 2D Continuous Wave color map + Propagating 1D Transverse E(y) profile curve + Stationary borders
+function drawElectricField(theta) {
     const width_px = canvas.width;
     const height_px = canvas.height;
     
@@ -238,19 +248,9 @@ function drawElectricField(theta, pulseCenter) {
     const beta1 = window.g_beta1;
     const beta2 = window.g_beta2;
     
-    // 1. Draw 2D Phase Wave Packet in the background using color density
+    // 1. Draw 2D Phase Continuous Wave (CW) in the background using color density
     for (let x = 0; x < width_px; x += 2) {
         let x_um = x / pixelScaleX;
-        
-        let distToCenter = x_um - pulseCenter;
-        let gauss = Math.exp(- (distToCenter * distToCenter) / (2 * sigmaPulse * sigmaPulse));
-        
-        if (gauss < 0.001) {
-            for (let y = 0; y < height_px; y += 2) {
-                draw2x2Block(data, x, y, width_px, 8, 12, 22);
-            }
-            continue;
-        }
         
         let cos_qx = Math.cos(q * x_um);
         let sin_qx = Math.sin(q * x_um);
@@ -258,9 +258,9 @@ function drawElectricField(theta, pulseCenter) {
         let sin_b1x = Math.sin(beta1 * x_um - theta);
         let sin_b2x = Math.sin(beta2 * x_um - theta);
         
-        // Asymmetric Coupled Mode theory amplitudes
-        let c1 = gauss * (cos_qx * cos_b1x + (delta / q) * sin_qx * sin_b1x);
-        let c2 = gauss * (kappa / q) * sin_qx * sin_b2x;
+        // Continuous wave coupling amplitudes along x
+        let c1 = cos_qx * cos_b1x + (delta / q) * sin_qx * sin_b1x;
+        let c2 = (kappa / q) * sin_qx * sin_b2x;
         
         for (let y = 0; y < height_px; y += 2) {
             let E = phi1[y] * c1 + phi2[y] * c2;
@@ -285,7 +285,7 @@ function drawElectricField(theta, pulseCenter) {
     
     ctx.putImageData(imgData, 0, 0);
     
-    // 2. Draw Waveguide Core Regions - STRICTLY STATIONARY BORDERS AND BACKGROUNDS
+    // 2. Draw Waveguide Core Regions - STRICTLY STATIONARY BORDERS
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -297,31 +297,31 @@ function drawElectricField(theta, pulseCenter) {
     ctx.moveTo(0, y2 + w_px/2); ctx.lineTo(width_px, y2 + w_px/2);
     ctx.stroke();
     
-    // 3. Draw Propagating 1D Transverse Electric Field Profile Curve E(y) at the Pulse Center
-    let pulseCenter_px = pulseCenter * pixelScaleX;
+    // 3. Draw Propagating 1D Transverse Electric Field Profile Curve E(y) at the Probe Position
+    let trackerX_px = trackerX * pixelScaleX;
     
-    // Draw vertical reference dashed line (local axis) at the center of the propagating pulse
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    // Draw vertical reference dashed line (local axis) at the probe position
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
-    ctx.moveTo(pulseCenter_px, 0);
-    ctx.lineTo(pulseCenter_px, height_px);
+    ctx.moveTo(trackerX_px, 0);
+    ctx.lineTo(trackerX_px, height_px);
     ctx.stroke();
     ctx.setLineDash([]);
     
-    // Draw the 1D transverse profile shape wiggling horizontally around the reference line
+    // Draw the 1D transverse profile shape wiggling horizontally around the probe reference line
     ctx.strokeStyle = '#ffffff'; // Solid white wave line
     ctx.lineWidth = 2.5;
     ctx.shadowColor = '#06b6d4'; // Cyan neon glow
     ctx.shadowBlur = 8;
     ctx.beginPath();
     
-    let cos_qx_c = Math.cos(q * pulseCenter);
-    let sin_qx_c = Math.sin(q * pulseCenter);
-    let cos_b1x_c = Math.cos(beta1 * pulseCenter - theta);
-    let sin_b1x_c = Math.sin(beta1 * pulseCenter - theta);
-    let sin_b2x_c = Math.sin(beta2 * pulseCenter - theta);
+    let cos_qx_c = Math.cos(q * trackerX);
+    let sin_qx_c = Math.sin(q * trackerX);
+    let cos_b1x_c = Math.cos(beta1 * trackerX - theta);
+    let sin_b1x_c = Math.sin(beta1 * trackerX - theta);
+    let sin_b2x_c = Math.sin(beta2 * trackerX - theta);
     
     let c1_prof = cos_qx_c * cos_b1x_c + (delta / q) * sin_qx_c * sin_b1x_c;
     let c2_prof = (kappa / q) * sin_qx_c * sin_b2x_c;
@@ -330,7 +330,7 @@ function drawElectricField(theta, pulseCenter) {
     
     for (let y = 0; y < height_px; y += 2) {
         let E_prof = phi1[y] * c1_prof + phi2[y] * c2_prof;
-        let x_disp = pulseCenter_px + E_prof * profileScale;
+        let x_disp = trackerX_px + E_prof * profileScale;
         
         if (y === 0) ctx.moveTo(x_disp, y);
         else ctx.lineTo(x_disp, y);
@@ -399,7 +399,7 @@ function draw2x2Block(data, x, y, width, r, g, b) {
 }
 
 // Draw Longitudinal Power Density Graph along x axis
-function drawPowerGraph(pulseCenter) {
+function drawPowerGraph() {
     const w = graphCanvas.width;
     const h = graphCanvas.height;
     
@@ -441,14 +441,12 @@ function drawPowerGraph(pulseCenter) {
     const delta = window.g_delta;
     const q = window.g_q;
     
-    // 1. WG1 Power Curve
+    // 1. WG1 Power Curve (Continuous spatial power flow along x)
     gCtx.strokeStyle = '#38bdf8'; // Cyan
     gCtx.beginPath();
     for (let x = 40; x < w - 20; x++) {
         let x_um = ((x - 40) / (w - 60)) * 400;
-        let distToCenter = x_um - pulseCenter;
-        let gauss = Math.exp(- (distToCenter * distToCenter) / (2 * sigmaPulse * sigmaPulse));
-        let p1 = gauss * gauss * (Math.pow(Math.cos(q * x_um), 2) + Math.pow(delta / q, 2) * Math.pow(Math.sin(q * x_um), 2));
+        let p1 = Math.pow(Math.cos(q * x_um), 2) + Math.pow(delta / q, 2) * Math.pow(Math.sin(q * x_um), 2);
         
         let y_px = h * 0.85 - p1 * (h * 0.7);
         if (x === 40) gCtx.moveTo(x, y_px);
@@ -461,15 +459,24 @@ function drawPowerGraph(pulseCenter) {
     gCtx.beginPath();
     for (let x = 40; x < w - 20; x++) {
         let x_um = ((x - 40) / (w - 60)) * 400;
-        let distToCenter = x_um - pulseCenter;
-        let gauss = Math.exp(- (distToCenter * distToCenter) / (2 * sigmaPulse * sigmaPulse));
-        let p2 = gauss * gauss * Math.pow(kappa / q, 2) * Math.pow(Math.sin(q * x_um), 2);
+        let p2 = Math.pow(kappa / q, 2) * Math.pow(Math.sin(q * x_um), 2);
         
         let y_px = h * 0.85 - p2 * (h * 0.7);
         if (x === 40) gCtx.moveTo(x, y_px);
         else gCtx.lineTo(x, y_px);
     }
     gCtx.stroke();
+    
+    // 3. Draw Vertical Probe Position Indicator in the Power Graph
+    let trackerX_graph_px = 40 + (trackerX / 400) * (w - 60);
+    gCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    gCtx.lineWidth = 1;
+    gCtx.setLineDash([2, 2]);
+    gCtx.beginPath();
+    gCtx.moveTo(trackerX_graph_px, h * 0.15);
+    gCtx.lineTo(trackerX_graph_px, h * 0.85);
+    gCtx.stroke();
+    gCtx.setLineDash([]);
     
     // Legend labels
     gCtx.font = 'bold 9px Inter';
@@ -485,11 +492,8 @@ function tick() {
         time += 0.05 * speed;
     }
     
-    // Group velocity movement for Gaussian pulse center (loops along x propagation direction)
-    let pulseCenter = (time * 12) % (400 + 160) - 80;
-    
-    drawElectricField(time, pulseCenter);
-    drawPowerGraph(pulseCenter);
+    drawElectricField(time);
+    drawPowerGraph();
     
     requestAnimationFrame(tick);
 }
@@ -580,6 +584,8 @@ function setupControls() {
         isPlaying = true;
         playIcon.style.display = 'none';
         pauseIcon.style.display = 'inline';
+        
+        trackerX = 200.0;
         
         updatePhysics();
     });
