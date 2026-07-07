@@ -496,6 +496,130 @@ function drawPowerGraph(probeX) {
     }
     gCtx.stroke();
     
+    // --- Calculate dynamic marker points along the waveguide length ---
+    let peakPoints = [];
+    let returnPoints = [];
+    let crossPoints = [];
+    let maxPowerWG2 = (kappa * kappa) / (q * q);
+    
+    if (q > 0) {
+        // A. Peak energy transfer points to WG2
+        for (let n = 0; n < 8; n++) {
+            let x_val = (2 * n + 1) * Math.PI / (2 * q);
+            if (x_val > 400.0) break;
+            peakPoints.push(x_val);
+        }
+        
+        // B. Complete power return points to WG1 (P1 = 1.0)
+        for (let n = 1; n < 8; n++) {
+            let x_val = n * Math.PI / q;
+            if (x_val > 400.0) break;
+            returnPoints.push(x_val);
+        }
+        
+        // C. 50:50 power crossover points (P1 = P2 = 0.5)
+        if (kappa > 0 && maxPowerWG2 >= 0.5) {
+            let ratio = q / (Math.sqrt(2) * kappa);
+            if (ratio <= 1.0) {
+                let base_asin = Math.asin(ratio);
+                for (let n = 0; n < 8; n++) {
+                    let x1 = (base_asin + n * Math.PI) / q;
+                    if (x1 <= 400.0) crossPoints.push(x1);
+                    
+                    let x2 = (Math.PI - base_asin + n * Math.PI) / q;
+                    if (x2 <= 400.0) crossPoints.push(x2);
+                }
+                crossPoints.sort((a, b) => a - b);
+            }
+        }
+    }
+    
+    // --- Draw Crossover (50:50) Point Indicators ---
+    gCtx.lineWidth = 1;
+    if (crossPoints.length > 0) {
+        crossPoints.slice(0, 3).forEach(x_val => {
+            let x_px = 40 + (x_val / 400) * (w - 60);
+            
+            // Vertical dotted indicator
+            gCtx.strokeStyle = 'rgba(168, 85, 247, 0.5)'; // Purple
+            gCtx.setLineDash([2, 2]);
+            gCtx.beginPath();
+            gCtx.moveTo(x_px, h * 0.15);
+            gCtx.lineTo(x_px, h * 0.85);
+            gCtx.stroke();
+            gCtx.setLineDash([]);
+            
+            // Intersection marker circle (at y corresponding to 0.5 power)
+            gCtx.fillStyle = '#ffffff';
+            gCtx.beginPath();
+            gCtx.arc(x_px, h * 0.5, 3.5, 0, 2 * Math.PI);
+            gCtx.fill();
+            gCtx.strokeStyle = '#a855f7';
+            gCtx.lineWidth = 1;
+            gCtx.stroke();
+            
+            // Text Label
+            gCtx.fillStyle = '#e9d5ff';
+            gCtx.font = 'bold 8px Fira Code, monospace';
+            gCtx.textAlign = 'center';
+            gCtx.fillText(`${x_val.toFixed(1)}μm(50:50)`, x_px, h * 0.11);
+        });
+    }
+    
+    // --- Draw Peak Energy Transfer Points (P2 Max) ---
+    peakPoints.slice(0, 2).forEach(x_val => {
+        let x_px = 40 + (x_val / 400) * (w - 60);
+        let y_px = h * 0.85 - maxPowerWG2 * (h * 0.7);
+        
+        // Vertical line
+        gCtx.strokeStyle = 'rgba(244, 63, 94, 0.4)'; // Pink
+        gCtx.setLineDash([2, 3]);
+        gCtx.beginPath();
+        gCtx.moveTo(x_px, h * 0.15);
+        gCtx.lineTo(x_px, h * 0.85);
+        gCtx.stroke();
+        gCtx.setLineDash([]);
+        
+        // Marker circle at peak
+        gCtx.fillStyle = '#f43f5e';
+        gCtx.beginPath();
+        gCtx.arc(x_px, y_px, 3.5, 0, 2 * Math.PI);
+        gCtx.fill();
+        
+        // Text Label
+        gCtx.fillStyle = '#fecdd3';
+        gCtx.font = 'bold 8px Fira Code, monospace';
+        gCtx.textAlign = 'center';
+        let label = maxPowerWG2 > 0.999 ? 'P₂=1.0' : `Max P₂(${maxPowerWG2.toFixed(2)})`;
+        gCtx.fillText(`${x_val.toFixed(1)}μm(${label})`, x_px, h * 0.9);
+    });
+    
+    // --- Draw Return Points (P1 = 1.0) ---
+    returnPoints.slice(0, 2).forEach(x_val => {
+        let x_px = 40 + (x_val / 400) * (w - 60);
+        
+        // Vertical line
+        gCtx.strokeStyle = 'rgba(56, 189, 248, 0.4)'; // Cyan
+        gCtx.setLineDash([2, 3]);
+        gCtx.beginPath();
+        gCtx.moveTo(x_px, h * 0.15);
+        gCtx.lineTo(x_px, h * 0.85);
+        gCtx.stroke();
+        gCtx.setLineDash([]);
+        
+        // Marker circle at P1 peak (y corresponding to 1.0)
+        gCtx.fillStyle = '#38bdf8';
+        gCtx.beginPath();
+        gCtx.arc(x_px, h * 0.15, 3.5, 0, 2 * Math.PI);
+        gCtx.fill();
+        
+        // Text Label
+        gCtx.fillStyle = '#bae6fd';
+        gCtx.font = 'bold 8px Fira Code, monospace';
+        gCtx.textAlign = 'center';
+        gCtx.fillText(`${x_val.toFixed(1)}μm(P₁=1.0)`, x_px, h * 0.06);
+    });
+    
     // 3. Draw Vertical Probe Position Indicator in the Power Graph
     let probeX_graph_px = 40 + (probeX / 400) * (w - 60);
     gCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
