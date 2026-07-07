@@ -83,7 +83,7 @@ function getGuidedModeCount(nCore, nCladL, nCladR, width_um, lambda_um) {
 function updatePhysics() {
     // 1. Auto-Zoom Calculation: scale up Y axis when gap is small, scale down when gap is large
     // Ensures details in the gap region are always legible and waveguides don't clip off-screen.
-    pixelScaleY = Math.min(8.0, Math.max(2.2, 220 / (width * 2 + gap)));
+    pixelScaleY = Math.min(28.0, Math.max(2.0, 280 / (width * 2 + gap)));
 
     // 2. Validation for Waveguide 1 (Core 1 must be denser than adjacent claddings)
     let cladMax1 = Math.max(nTop, nMid);
