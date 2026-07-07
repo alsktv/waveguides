@@ -227,13 +227,14 @@ function precomputeTransverseModes(norm1, norm2) {
     }
 }
 
-// Render electric field: 2D Color Density map + Moving 1D Transverse profile curve + Stationary borders
+// Render electric field: propagating wave lines + stationary borders + high contrast axes
 function drawElectricField(theta, pulseCenter) {
     const width_px = canvas.width;
     const height_px = canvas.height;
     
-    const imgData = ctx.createImageData(width_px, height_px);
-    const data = imgData.data;
+    // Clear canvas
+    ctx.fillStyle = '#040711';
+    ctx.fillRect(0, 0, width_px, height_px);
     
     const w_px = width * pixelScaleY;
     const gap_px = gap * pixelScaleY;
@@ -246,105 +247,78 @@ function drawElectricField(theta, pulseCenter) {
     const beta1 = window.g_beta1;
     const beta2 = window.g_beta2;
     
-    // 1. Draw 2D Phase Wave Packet in the background using color density
-    for (let x = 0; x < width_px; x += 2) {
-        let x_um = x / pixelScaleX;
-        
-        let distToCenter = x_um - pulseCenter;
-        let gauss = Math.exp(- (distToCenter * distToCenter) / (2 * sigmaPulse * sigmaPulse));
-        
-        if (gauss < 0.001) {
-            for (let y = 0; y < height_px; y += 2) {
-                draw2x2Block(data, x, y, width_px, 8, 12, 22);
-            }
-            continue;
-        }
-        
-        let cos_qx = Math.cos(q * x_um);
-        let sin_qx = Math.sin(q * x_um);
-        let cos_b1x = Math.cos(beta1 * x_um - theta);
-        let sin_b1x = Math.sin(beta1 * x_um - theta);
-        let sin_b2x = Math.sin(beta2 * x_um - theta);
-        
-        // Asymmetric Coupled Mode theory amplitudes
-        let c1 = gauss * (cos_qx * cos_b1x + (delta / q) * sin_qx * sin_b1x);
-        let c2 = gauss * (kappa / q) * sin_qx * sin_b2x;
-        
-        for (let y = 0; y < height_px; y += 2) {
-            let E = phi1[y] * c1 + phi2[y] * c2;
-            
-            let r = 8, g = 12, b = 22; // Base dark blue background
-            
-            if (E > 0.015) {
-                let amt = Math.min(1.0, E) * 230;
-                r = Math.round(r + amt * 0.1);
-                g = Math.round(g + amt * 0.85);
-                b = Math.round(b + amt * 1.0);
-            } else if (E < -0.015) {
-                let amt = Math.min(1.0, -E) * 230;
-                r = Math.round(r + amt * 1.0);
-                g = Math.round(g + amt * 0.15);
-                b = Math.round(b + amt * 0.7);
-            }
-            
-            draw2x2Block(data, x, y, width_px, r, g, b);
-        }
-    }
+    // 1. Draw Waveguide Core Regions - STILL BORDERS AND LOW OPACITY STATIC BACKGROUNDS
+    // Core 1
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.04)';
+    ctx.fillRect(0, y1 - w_px/2, width_px, w_px);
+    // Core 2
+    ctx.fillStyle = 'rgba(244, 63, 94, 0.04)';
+    ctx.fillRect(0, y2 - w_px/2, width_px, w_px);
     
-    ctx.putImageData(imgData, 0, 0);
-    
-    // 2. Draw Waveguide Core Regions - STRICTLY STATIONARY BORDERS
+    // Core boundaries (strictly stationary, do not move)
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    // Core 1 borders
     ctx.moveTo(0, y1 - w_px/2); ctx.lineTo(width_px, y1 - w_px/2);
     ctx.moveTo(0, y1 + w_px/2); ctx.lineTo(width_px, y1 + w_px/2);
-    // Core 2 borders
     ctx.moveTo(0, y2 - w_px/2); ctx.lineTo(width_px, y2 - w_px/2);
     ctx.moveTo(0, y2 + w_px/2); ctx.lineTo(width_px, y2 + w_px/2);
     ctx.stroke();
     
-    // 3. Draw Propagating 1D Transverse Electric Field Profile Curve E(y) at the Pulse Center
-    let pulseCenter_px = pulseCenter * pixelScaleX;
+    // 2. Draw propagating transverse field curves (parallel waves wiggling vertically along x axis)
+    // Spaced by 12px to avoid clutter and prevent them from looking like moving boundaries
+    const stepY = 12;
+    const wiggleScale = 25.0; // Wave wiggle amplitude
     
-    // Draw vertical reference dashed line (local axis) at the center of the propagating pulse
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(pulseCenter_px, 0);
-    ctx.lineTo(pulseCenter_px, height_px);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    
-    // Draw the 1D transverse profile shape wiggling horizontally around the reference line
-    ctx.strokeStyle = '#ffffff'; // Solid white wave line
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = '#06b6d4'; // Cyan neon glow
-    ctx.shadowBlur = 8;
-    ctx.beginPath();
-    
-    let cos_qx_c = Math.cos(q * pulseCenter);
-    let sin_qx_c = Math.sin(q * pulseCenter);
-    let cos_b1x_c = Math.cos(beta1 * pulseCenter - theta);
-    let sin_b1x_c = Math.sin(beta1 * pulseCenter - theta);
-    let sin_b2x_c = Math.sin(beta2 * pulseCenter - theta);
-    
-    let c1_prof = cos_qx_c * cos_b1x_c + (delta / q) * sin_qx_c * sin_b1x_c;
-    let c2_prof = (kappa / q) * sin_qx_c * sin_b2x_c;
-    
-    const profileScale = 50.0; // Profile displacement scaling factor
-    
-    for (let y = 0; y < height_px; y += 2) {
-        let E_prof = phi1[y] * c1_prof + phi2[y] * c2_prof;
-        let x_disp = pulseCenter_px + E_prof * profileScale;
+    for (let y = 12; y < height_px - 10; y += stepY) {
+        // Highlight core center wave lines to emphasize the mode shape peak
+        let isCoreCenter1 = Math.abs(y - y1) < 6;
+        let isCoreCenter2 = Math.abs(y - y2) < 6;
         
-        if (y === 0) ctx.moveTo(x_disp, y);
-        else ctx.lineTo(x_disp, y);
+        if (isCoreCenter1) {
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)'; // Bright Cyan for Core 1 center wave
+            ctx.lineWidth = 2.0;
+        } else if (isCoreCenter2) {
+            ctx.strokeStyle = 'rgba(244, 63, 94, 0.85)'; // Bright Pink for Core 2 center wave
+            ctx.lineWidth = 2.0;
+        } else {
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)'; // Neon Green for cladding/evanescent field waves
+            ctx.lineWidth = 1.0;
+        }
+        
+        ctx.beginPath();
+        for (let x = 0; x < width_px; x += 4) {
+            let x_um = x / pixelScaleX;
+            
+            // Gaussian envelope along the propagation axis
+            let distToCenter = x_um - pulseCenter;
+            let gauss = Math.exp(- (distToCenter * distToCenter) / (2 * sigmaPulse * sigmaPulse));
+            
+            let E = 0;
+            if (gauss > 0.001) {
+                // Wave propagation constants (asymmetric Coupled Mode equations along x propagation axis)
+                let cos_qx = Math.cos(q * x_um);
+                let sin_qx = Math.sin(q * x_um);
+                let cos_b1x = Math.cos(beta1 * x_um - theta);
+                let sin_b1x = Math.sin(beta1 * x_um - theta);
+                let sin_b2x = Math.sin(beta2 * x_um - theta);
+                
+                // WG1 input contribution
+                let c1 = gauss * (cos_qx * cos_b1x + (delta / q) * sin_qx * sin_b1x);
+                // WG2 coupling contribution
+                let c2 = gauss * (kappa / q) * sin_qx * sin_b2x;
+                
+                E = phi1[y] * c1 + phi2[y] * c2;
+            }
+            
+            // Vertical displacement from the baseline y
+            let y_disp = y + E * wiggleScale;
+            
+            if (x === 0) ctx.moveTo(x, y_disp);
+            else ctx.lineTo(x, y_disp);
+        }
+        ctx.stroke();
     }
-    ctx.stroke();
-    ctx.shadowBlur = 0; // Reset shadow glow
     
     // Core & cladding static labels
     ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
@@ -357,53 +331,41 @@ function drawElectricField(theta, pulseCenter) {
     ctx.fillText(`중간 클래딩 (n = ${nMid.toFixed(3)})`, 15, cy + 4);
     ctx.fillText(`하부 클래딩 (n = ${nBot.toFixed(3)})`, 15, y2 + w_px/2 + 14);
     
-    // Draw axis arrows & coordinate system details
+    // Draw high contrast coordinate axis indicators
     drawAxes();
 }
 
 // Draw Coordinate Axis Indicator in the corner of the canvas
 function drawAxes() {
-    const startX = 35;
-    const startY = canvas.height - 35;
+    const startX = 40;
+    const startY = canvas.height - 40;
     
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.lineWidth = 2.0;
     
     // X Axis arrow (propagation along waveguide)
     ctx.beginPath();
     ctx.moveTo(startX, startY);
-    ctx.lineTo(startX + 40, startY);
-    ctx.lineTo(startX + 35, startY - 3);
-    ctx.moveTo(startX + 40, startY);
-    ctx.lineTo(startX + 35, startY + 3);
+    ctx.lineTo(startX + 50, startY);
+    ctx.lineTo(startX + 44, startY - 4);
+    ctx.moveTo(startX + 50, startY);
+    ctx.lineTo(startX + 44, startY + 4);
     ctx.stroke();
     
     // Y Axis arrow (transverse across waveguide, pointing upward)
     ctx.beginPath();
     ctx.moveTo(startX, startY);
-    ctx.lineTo(startX, startY - 40);
-    ctx.lineTo(startX - 3, startY - 35);
-    ctx.moveTo(startX, startY - 40);
-    ctx.lineTo(startX + 3, startY - 35);
+    ctx.lineTo(startX, startY - 50);
+    ctx.lineTo(startX - 4, startY - 44);
+    ctx.moveTo(startX, startY - 50);
+    ctx.lineTo(startX + 4, startY - 44);
     ctx.stroke();
     
     // Labels
-    ctx.font = 'italic 11px Inter';
-    ctx.fillText('x (진행 방향)', startX + 45, startY + 4);
-    ctx.fillText('y (수직 횡방향)', startX - 10, startY - 48);
-}
-
-// Helper to write a 2x2 pixel block into the ImageData array
-function draw2x2Block(data, x, y, width, r, g, b) {
-    const idx1 = (y * width + x) * 4;
-    const idx2 = ((y + 1) * width + x) * 4;
-    
-    data[idx1] = r; data[idx1+1] = g; data[idx1+2] = b; data[idx1+3] = 255;
-    data[idx1+4] = r; data[idx1+5] = g; data[idx1+6] = b; data[idx1+7] = 255;
-    
-    data[idx2] = r; data[idx2+1] = g; data[idx2+2] = b; data[idx2+3] = 255;
-    data[idx2+4] = r; data[idx2+5] = g; data[idx2+6] = b; data[idx2+7] = 255;
+    ctx.font = 'bold 11px Inter';
+    ctx.fillText('x (진행 방향)', startX + 55, startY + 4);
+    ctx.fillText('y (수직 횡방향)', startX - 12, startY - 56);
 }
 
 // Draw Longitudinal Power Density Graph along x axis
