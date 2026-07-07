@@ -499,3 +499,40 @@ input[type="range"]::-webkit-slider-thumb:hover {
     margin: 0.5rem 0;
     line-height: 1.4;
 }
+
+/* Number Input with Unit Styles */
+.input-with-unit {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-stroke);
+    border-radius: 6px;
+    padding: 2px 6px;
+}
+
+.num-input {
+    background: transparent;
+    border: none;
+    color: var(--primary);
+    width: 45px;
+    text-align: right;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    outline: none;
+}
+
+.num-input::-webkit-outer-spin-button,
+.num-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.num-input {
+    -moz-appearance: textfield;
+}
+
+.unit {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    margin-left: 3px;
+}

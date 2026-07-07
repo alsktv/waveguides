@@ -474,7 +474,19 @@ function setupSliders() {
     
     sliderWidth.addEventListener('input', (e) => {
         width = parseFloat(e.target.value);
-        valWidth.textContent = `${width} μm`;
+        document.getElementById('input-width').value = width.toFixed(1);
+        updatePhysics();
+    });
+    
+    const inputWidth = document.getElementById('input-width');
+    inputWidth.addEventListener('change', (e) => {
+        let val = parseFloat(e.target.value);
+        if (isNaN(val) || val <= 0.1) {
+            val = 0.5; // Safety guard
+        }
+        width = val;
+        inputWidth.value = width.toFixed(1);
+        sliderWidth.value = Math.max(parseFloat(sliderWidth.min), Math.min(parseFloat(sliderWidth.max), width));
         updatePhysics();
     });
     
@@ -535,7 +547,7 @@ function setupControls() {
     btnReset.addEventListener('click', () => {
         time = 0;
         sliderGap.value = 15; valGap.textContent = '15 μm'; gap = 15;
-        sliderWidth.value = 10; valWidth.textContent = '10 μm'; width = 10;
+        sliderWidth.value = 10; document.getElementById('input-width').value = '10.0'; width = 10;
         sliderLambda.value = 1.55; valLambda.textContent = '1.55 μm'; lambda = 1.55;
         sliderNcore1.value = 1.500; valNcore1.textContent = '1.500'; nCore1 = 1.500;
         sliderNcore2.value = 1.500; valNcore2.textContent = '1.500'; nCore2 = 1.500;
