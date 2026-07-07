@@ -700,8 +700,8 @@ let kz1_3d, kz2_3d, ky_3d;
 let gCover1_3d, gSub1_3d, gCover2_3d, gSub2_3d, gY_3d;
 let phi01_3d, phi02_3d;
 
-// Bisection slab solver helper
-function solveSlab3D(nCore, nCladL, nCladR, thickness, wavelength) {
+// Bisection slab solver helper (with mode order m support)
+function solveSlab3D(nCore, nCladL, nCladR, thickness, wavelength, m = 0) {
     let k0_val = 2 * Math.PI / wavelength;
     let cladMax = Math.max(nCladL, nCladR);
     if (nCore <= cladMax) return null;
@@ -716,7 +716,7 @@ function solveSlab3D(nCore, nCladL, nCladR, thickness, wavelength) {
         let gL = Math.sqrt(mid*mid - k0_val*k0_val*nCladL*nCladL);
         let gR = Math.sqrt(mid*mid - k0_val*k0_val*nCladR*nCladR);
         
-        let val = kx * thickness - Math.atan(gL / kx) - Math.atan(gR / kx);
+        let val = kx * thickness - Math.atan(gL / kx) - Math.atan(gR / kx) - m * Math.PI;
         if (val > 0) {
             low = mid;
             beta = mid;
@@ -725,6 +725,39 @@ function solveSlab3D(nCore, nCladL, nCladR, thickness, wavelength) {
         }
     }
     return beta;
+}
+
+// Jet-based thermal color map function (optimized dark navy background for v=0)
+function getJetColor(v) {
+    v = Math.max(0, Math.min(1, v));
+    let r = 0, g = 0, b = 0;
+    
+    if (v < 0.25) {
+        // Dark Blue (10, 15, 60) to Cyan (0, 255, 255)
+        let t = v / 0.25;
+        r = Math.round(10 * (1 - t) + 0 * t);
+        g = Math.round(15 * (1 - t) + 255 * t);
+        b = Math.round(60 * (1 - t) + 255 * t);
+    } else if (v < 0.5) {
+        // Cyan (0, 255, 255) to Green (0, 255, 0)
+        let t = (v - 0.25) / 0.25;
+        r = 0;
+        g = 255;
+        b = Math.round(255 * (1 - t));
+    } else if (v < 0.75) {
+        // Green (0, 255, 0) to Yellow (255, 255, 0)
+        let t = (v - 0.5) / 0.25;
+        r = Math.round(255 * t);
+        g = 255;
+        b = 0;
+    } else {
+        // Yellow (255, 255, 0) to Dark Red (180, 0, 0)
+        let t = (v - 0.75) / 0.25;
+        r = Math.round(255 * (1 - t) + 180 * t);
+        g = Math.round(255 * (1 - t) + 0 * t);
+        b = 0;
+    }
+    return { r, g, b };
 }
 
 function updatePhysics3D() {
@@ -744,26 +777,34 @@ function updatePhysics3D() {
     
     const k0_3d = 2 * Math.PI / lambda3D;
     
-    // Step 1: Vertical Slab I (Center thickness H)
-    let beta_I = solveSlab3D(nCore3D, nCover3D, nSub3D, height3D, lambda3D);
+    // Read the selected mode index (0 = fundamental, 1 = first-order)
+    let selectedMode3D = parseInt(document.getElementById('select-3d-mode').value);
+    
+    // Step 1: Vertical Slab I (Center thickness H, always fundamental m_z = 0)
+    let beta_I = solveSlab3D(nCore3D, nCover3D, nSub3D, height3D, lambda3D, 0);
     let nEff_I = beta_I ? beta_I / k0_3d : nSub3D;
     
-    // Step 2: Vertical Slab II (Slab wing height h)
+    // Step 2: Vertical Slab II (Slab wing height h, always fundamental m_z = 0)
     let nEff_II = nSub3D;
     let beta_II = null;
     
     if (wgType3D === 'rib' && slab3D > 0.02) {
-        beta_II = solveSlab3D(nCore3D, nCover3D, nSub3D, slab3D, lambda3D);
+        beta_II = solveSlab3D(nCore3D, nCover3D, nSub3D, slab3D, lambda3D, 0);
         if (beta_II) {
             nEff_II = beta_II / k0_3d;
         }
     }
     
-    // Step 3: Horizontal Slab (Width W, core nEff_I, cladding nEff_II)
+    // Step 3: Horizontal Slab (Width W, core nEff_I, cladding nEff_II, mode m_y = selectedMode3D)
     let beta_final = null;
     if (beta_I && nEff_I > nEff_II) {
-        beta_final = solveSlab3D(nEff_I, nEff_II, nEff_II, width3D, lambda3D);
+        beta_final = solveSlab3D(nEff_I, nEff_II, nEff_II, width3D, lambda3D, selectedMode3D);
     }
+    
+    // Update badge description text
+    let geomText = wgType3D === 'rib' ? 'Rib Waveguide' : 'Strip Waveguide';
+    let modeText = selectedMode3D === 0 ? 'm = 0 (Fundamental Mode)' : 'm = 1 (1st-order Mode)';
+    document.getElementById('badge-mode-type').textContent = `${geomText} (${modeText})`;
     
     if (beta_final) {
         cutoff3D = false;
@@ -788,7 +829,7 @@ function updatePhysics3D() {
         ky_3d = Math.sqrt(k0_3d*k0_3d*nEff_I*nEff_I - beta_final*beta_final);
         gY_3d = Math.sqrt(beta_final*beta_final - k0_3d*k0_3d*nEff_II*nEff_II);
         
-        precompute3DProfiles();
+        precompute3DProfiles(selectedMode3D);
     } else {
         cutoff3D = true;
         document.getElementById('val-3d-neff').textContent = 'N/A';
@@ -799,7 +840,7 @@ function updatePhysics3D() {
     render3D();
 }
 
-function precompute3DProfiles() {
+function precompute3DProfiles(selectedMode) {
     const h_px = canvas3D.height;
     const w_px = canvas3D.width;
     
@@ -840,13 +881,28 @@ function precompute3DProfiles() {
         }
     }
     
-    // 1D horizontal profile F(y)
+    // 1D horizontal profile F(y) (which acts as F(x) in E(x, y) coordinates)
     for (let y_px = 0; y_px < w_px; y_px++) {
         let y_um = (y_px - 400) / 60.0;
-        if (Math.abs(y_um) <= width3D / 2) {
-            F_y[y_px] = Math.cos(ky_3d * y_um);
+        if (selectedMode === 1) {
+            // Asymmetric first-order mode (two lobes of opposite sign)
+            if (Math.abs(y_um) <= width3D / 2) {
+                F_y[y_px] = Math.sin(ky_3d * y_um);
+            } else {
+                let edgeVal = Math.sin(ky_3d * width3D / 2);
+                if (y_um > 0) {
+                    F_y[y_px] = edgeVal * Math.exp(-gY_3d * (y_um - width3D / 2));
+                } else {
+                    F_y[y_px] = -edgeVal * Math.exp(-gY_3d * (-y_um - width3D / 2));
+                }
+            }
         } else {
-            F_y[y_px] = Math.cos(ky_3d * width3D / 2) * Math.exp(-gY_3d * (Math.abs(y_um) - width3D / 2));
+            // Symmetric fundamental mode (single lobe)
+            if (Math.abs(y_um) <= width3D / 2) {
+                F_y[y_px] = Math.cos(ky_3d * y_um);
+            } else {
+                F_y[y_px] = Math.cos(ky_3d * width3D / 2) * Math.exp(-gY_3d * (Math.abs(y_um) - width3D / 2));
+            }
         }
     }
 }
@@ -872,7 +928,7 @@ function render3D() {
     const imgData = ctx3D.createImageData(w, h);
     const data = imgData.data;
     
-    // 1. Draw 2D EIM mode profile heatmap
+    // 1. Draw 2D EIM mode profile heatmap (mapped from blue to red)
     for (let x = 0; x < w; x += 2) {
         let y_um = (x - 400) / 60.0;
         let F = F_y[x];
@@ -881,21 +937,11 @@ function render3D() {
             let G = (Math.abs(y_um) <= width3D / 2) ? G_I[y] : G_II[y];
             let E = F * G;
             
-            let r = 8, g = 12, b = 22; // Base dark blue background
+            // Map absolute amplitude field to Jet colormap (max amplitude is 1.0, zero field is dark blue)
+            let intensity = Math.abs(E);
+            let col = getJetColor(intensity);
             
-            if (E > 0.01) {
-                let amt = Math.min(1.0, E) * 230;
-                r = Math.round(r + amt * 0.1);
-                g = Math.round(g + amt * 0.85);
-                b = Math.round(b + amt * 1.0);
-            } else if (E < -0.01) {
-                let amt = Math.min(1.0, -E) * 230;
-                r = Math.round(r + amt * 1.0);
-                g = Math.round(g + amt * 0.15);
-                b = Math.round(b + amt * 0.7);
-            }
-            
-            draw2x2Block(data, x, y, w, r, g, b);
+            draw2x2Block(data, x, y, w, col.r, col.g, col.b);
         }
     }
     ctx3D.putImageData(imgData, 0, 0);
@@ -907,7 +953,7 @@ function render3D() {
     
     let x_left = 400 - (width3D / 2) * 60;
     let x_right = 400 + (width3D / 2) * 60;
-    let y_sub = 260; // substrate z=0
+    let y_sub = 260; // substrate y=0
     let y_top = 260 - height3D * 60;
     let y_wing = 260 - slab3D * 60;
     
@@ -947,14 +993,14 @@ function draw3DCoords(x_left, x_right, y_sub, y_top, y_wing) {
     ctx3D.lineWidth = 1.0;
     ctx3D.font = '9px Fira Code, monospace';
     
-    // Y-axis (transverse horizontal axis ticks at bottom)
+    // X-axis (transverse horizontal axis x ticks at bottom)
     ctx3D.beginPath();
     ctx3D.moveTo(40, 340);
     ctx3D.lineTo(760, 340);
     ctx3D.stroke();
     
-    const ticksY = [-5, -3, -1, 0, 1, 3, 5];
-    ticksY.forEach(val => {
+    const ticksX = [-5, -3, -1, 0, 1, 3, 5];
+    ticksX.forEach(val => {
         let x_px = 400 + val * 60;
         ctx3D.beginPath();
         ctx3D.moveTo(x_px, 340);
@@ -965,14 +1011,14 @@ function draw3DCoords(x_left, x_right, y_sub, y_top, y_wing) {
         ctx3D.fillText(val + 'μm', x_px, 355);
     });
     
-    // Z-axis (transverse vertical axis ticks at left)
+    // Y-axis (transverse vertical axis y ticks at left)
     ctx3D.beginPath();
     ctx3D.moveTo(40, 40);
     ctx3D.lineTo(40, 340);
     ctx3D.stroke();
     
-    const ticksZ = [-1.0, 0, 1.0, 2.0, 3.0];
-    ticksZ.forEach(val => {
+    const ticksY = [-1.0, 0, 1.0, 2.0, 3.0];
+    ticksY.forEach(val => {
         let y_px = 260 - val * 60;
         ctx3D.beginPath();
         ctx3D.moveTo(35, y_px);
@@ -988,9 +1034,9 @@ function draw3DCoords(x_left, x_right, y_sub, y_top, y_wing) {
     ctx3D.fillStyle = '#ffffff';
     ctx3D.font = 'bold 10px Inter';
     ctx3D.textAlign = 'left';
-    ctx3D.fillText('z (수직 가이드 축)', 10, 30);
+    ctx3D.fillText('y (수직 횡방향 축)', 10, 30);
     ctx3D.textAlign = 'right';
-    ctx3D.fillText('y (수평 가이드 축) →', 780, 325);
+    ctx3D.fillText('x (수평 횡방향 축) →', 780, 325);
     
     // Overlay labels for Rib dimensions
     ctx3D.fillStyle = '#eab308';
@@ -1045,16 +1091,16 @@ function render3DCutlines() {
     cutCtx.fillText('0.0', 25, h * 0.88);
     
     // Plot Cutlines
-    // 1. Horizontal Cutline: E(y, z = H/2) -> plotted along Y in cyan
+    // 1. Horizontal Cutline: |E(x, y = H/2)| -> plotted along graph in cyan
     cutCtx.strokeStyle = '#38bdf8'; // Cyan
     cutCtx.lineWidth = 2;
     cutCtx.beginPath();
     
-    const center_z_px = Math.round(260 - (height3D / 2) * 60);
-    const G_val = G_I[center_z_px];
+    const center_y_px = Math.round(260 - (height3D / 2) * 60);
+    const G_val = G_I[center_y_px];
     
     for (let x = 40; x < w - 20; x++) {
-        let x_canvas = 400 + ((x - 40) / (w - 60) * 10 - 5) * 60; // maps graph x coordinate to 3d canvas x pixel
+        let x_canvas = 400 + ((x - 40) / (w - 60) * 10 - 5) * 60; // maps graph coordinate to 3d canvas x pixel
         x_canvas = Math.max(0, Math.min(canvas3D.width - 1, Math.round(x_canvas)));
         
         let F = F_y[x_canvas];
@@ -1066,18 +1112,18 @@ function render3DCutlines() {
     }
     cutCtx.stroke();
     
-    // 2. Vertical Cutline: E(y = 0, z) -> plotted along Y in pink
+    // 2. Vertical Cutline: |E(x = 0, y)| -> plotted along graph in pink
     cutCtx.strokeStyle = '#f43f5e'; // Pink
     cutCtx.beginPath();
     
-    const F_center = F_y[400]; // at y = 0
+    const F_center = F_y[400]; // at x = 0
     
     for (let x = 40; x < w - 20; x++) {
-        let z_um = ((x - 40) / (w - 60)) * 4.5 - 1.5; // maps graph x [40, w-20] to z [-1.5, 3.0] um
-        let z_px = Math.round(260 - z_um * 60);
-        z_px = Math.max(0, Math.min(canvas3D.height - 1, z_px));
+        let y_um = ((x - 40) / (w - 60)) * 4.5 - 1.5; // maps graph coordinate to y [-1.5, 3.0] um
+        let y_px = Math.round(260 - y_um * 60);
+        y_px = Math.max(0, Math.min(canvas3D.height - 1, y_px));
         
-        let G = G_I[z_px];
+        let G = G_I[y_px];
         let E_val = F_center * G;
         
         let y_px = h * 0.85 - Math.abs(E_val) * (h * 0.7);
@@ -1090,9 +1136,9 @@ function render3DCutlines() {
     cutCtx.font = 'bold 9px Inter';
     cutCtx.fillStyle = '#38bdf8';
     cutCtx.textAlign = 'left';
-    cutCtx.fillText('수평 단면 프로파일 E(y, z=H/2)', w - 200, h * 0.25);
+    cutCtx.fillText('수평 단면 프로파일 E(x, y=H/2)', w - 200, h * 0.25);
     cutCtx.fillStyle = '#f43f5e';
-    cutCtx.fillText('수직 단면 프로파일 E(y=0, z)', w - 200, h * 0.38);
+    cutCtx.fillText('수직 단면 프로파일 E(x=0, y)', w - 200, h * 0.38);
 }
 
 function bindParam3D(sliderId, inputId, applyBtnId, minVal, maxVal, isInt, updateVarFn) {
@@ -1136,7 +1182,7 @@ function setupSliders3D() {
     bindParam3D('slider-3d-ncover', 'input-3d-ncover', 'btn-apply-3d-ncover', 1.0, 4.0, false, (v) => { nCover3D = v; });
     bindParam3D('slider-3d-nsub', 'input-3d-nsub', 'btn-apply-3d-nsub', 1.0, 4.0, false, (v) => { nSub3D = v; });
     
-    // Dropdown change listener
+    // Waveguide Type selection change listener
     document.getElementById('select-wg-type').addEventListener('change', (e) => {
         wgType3D = e.target.value;
         const slabGroup = document.getElementById('group-3d-slab');
@@ -1147,7 +1193,11 @@ function setupSliders3D() {
             slabGroup.style.display = 'block';
             slab3D = parseFloat(document.getElementById('slider-3d-slab').value);
         }
-        document.getElementById('badge-mode-type').textContent = wgType3D === 'rib' ? 'Rib Waveguide (Fundamental Mode)' : 'Strip Waveguide (Fundamental Mode)';
+        updatePhysics3D();
+    });
+
+    // Mode selection change listener
+    document.getElementById('select-3d-mode').addEventListener('change', () => {
         updatePhysics3D();
     });
 }
@@ -1164,8 +1214,6 @@ function tick() {
         drawElectricField(time, currentProbeX);
         drawPowerGraph(currentProbeX);
     }
-    // EIM 3D simulation does not require active time-based updates, 
-    // it computes statically upon parameter slider modification.
     
     requestAnimationFrame(tick);
 }

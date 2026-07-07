@@ -275,13 +275,13 @@
             <div class="main-panel">
                 <div class="card canvas-card">
                     <div class="card-header">
-                        <h2>3D 전자기장 모드 횡단면 분포 $E(y, z)$</h2>
+                        <h2>3D 전자기장 모드 횡단면 분포 $E(x, y)$</h2>
                         <div class="header-actions">
                             <span class="badge" id="badge-mode-type">Rib Waveguide (Fundamental Mode)</span>
                         </div>
                     </div>
                     <div class="canvas-wrapper" style="position: relative;">
-                        <!-- 2D Heatmap canvas (y-z plane) -->
+                        <!-- 2D Heatmap canvas (x-y plane) -->
                         <canvas id="canvas-3d" width="800" height="360"></canvas>
                         <div class="canvas-overlay-text" id="canvas-3d-loading" style="display: none;">연산 중...</div>
                     </div>
@@ -289,12 +289,12 @@
                     <!-- Color legend for 3D Mode Profile -->
                     <div class="canvas-legend">
                         <div class="legend-item">
-                            <span class="legend-color cyan-glow"></span>
-                            <span><strong>청색/하늘색 (Cyan)</strong>: (+) 방향 전기장 진폭</span>
+                            <span class="legend-color" style="background: #8b0000; box-shadow: 0 0 6px #ff0000; border-radius: 3px; width: 12px; height: 12px; display: inline-block;"></span>
+                            <span><strong>적색 (Red)</strong>: 가장 강한 전기장 세기 (Peak Intensity)</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-color pink-glow"></span>
-                            <span><strong>적색/분홍색 (Pink)</strong>: (-) 방향 전기장 진폭</span>
+                            <span class="legend-color" style="background: #0000ff; box-shadow: 0 0 6px #0000ff; border-radius: 3px; width: 12px; height: 12px; display: inline-block;"></span>
+                            <span><strong>청색 (Blue)</strong>: 약한 전기장 세기 (Zero Field)</span>
                         </div>
                         <div class="legend-item">
                             <span class="legend-color white-line" style="box-shadow: none; background: #eab308; height: 3px;"></span>
@@ -329,6 +329,15 @@
                         <select id="select-wg-type" class="param-select" style="width: 100%; padding: 8px 12px; background: rgba(4,7,17,0.6); border: 1px solid var(--border-stroke); border-radius: 6px; color: var(--primary); font-weight: bold; outline: none; margin-bottom: 8px;">
                             <option value="rib">Rib Waveguide (립 도파로)</option>
                             <option value="ridge">Strip/Ridge Waveguide (스트립/릿지 도파로)</option>
+                        </select>
+                    </div>
+
+                    <!-- Mode Order Selection -->
+                    <div class="control-group">
+                        <label>선택 도파 모드 (Mode Number)</label>
+                        <select id="select-3d-mode" class="param-select" style="width: 100%; padding: 8px 12px; background: rgba(4,7,17,0.6); border: 1px solid var(--border-stroke); border-radius: 6px; color: var(--primary); font-weight: bold; outline: none; margin-bottom: 8px;">
+                            <option value="0">기본 모드 (m = 0, 1개 Lobe)</option>
+                            <option value="1">1차 고차 모드 (m = 1, 2개 Lobe)</option>
                         </select>
                     </div>
 
