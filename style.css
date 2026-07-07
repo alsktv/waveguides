@@ -500,21 +500,22 @@ input[type="range"]::-webkit-slider-thumb:hover {
     line-height: 1.4;
 }
 
-/* Number Input with Unit Styles */
-.input-with-unit {
+/* Number Input and Apply Button Styles */
+.input-actions-row {
     display: flex;
     align-items: center;
-    background: rgba(255, 255, 255, 0.05);
+    gap: 0.3rem;
+    background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-stroke);
     border-radius: 6px;
-    padding: 2px 6px;
+    padding: 2px 5px;
 }
 
-.num-input {
+.param-input {
     background: transparent;
     border: none;
     color: var(--primary);
-    width: 45px;
+    width: 48px;
     text-align: right;
     font-family: 'Fira Code', monospace;
     font-size: 0.85rem;
@@ -522,17 +523,35 @@ input[type="range"]::-webkit-slider-thumb:hover {
     outline: none;
 }
 
-.num-input::-webkit-outer-spin-button,
-.num-input::-webkit-inner-spin-button {
+.param-input::-webkit-outer-spin-button,
+.param-input::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
 }
-.num-input {
+.param-input {
     -moz-appearance: textfield;
 }
 
-.unit {
+.param-unit {
     color: var(--text-secondary);
     font-size: 0.75rem;
-    margin-left: 3px;
+    margin-right: 2px;
+}
+
+.btn-apply {
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    color: var(--primary);
+    font-size: 0.7rem;
+    font-weight: bold;
+    padding: 1px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-apply:hover {
+    background: rgba(56, 189, 248, 0.3);
+    border-color: var(--primary);
+    box-shadow: 0 0 6px rgba(56, 189, 248, 0.2);
 }

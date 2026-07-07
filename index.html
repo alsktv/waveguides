@@ -101,7 +101,11 @@
                     <div class="slider-group">
                         <div class="slider-label-row">
                             <span>도파로 간격 (Gap)</span>
-                            <span class="val-display" id="val-gap">15 μm</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-gap" value="15.0" step="0.5" min="1.0" class="param-input">
+                                <span class="param-unit">μm</span>
+                                <button class="btn-apply" id="btn-apply-gap">적용</button>
+                            </div>
                         </div>
                         <input type="range" id="slider-gap" min="5" max="40" value="15" step="1">
                     </div>
@@ -109,9 +113,10 @@
                     <div class="slider-group">
                         <div class="slider-label-row">
                             <span>도파로 너비 (Width)</span>
-                            <div class="input-with-unit">
-                                <input type="number" id="input-width" value="10.0" step="0.1" min="0.1" class="num-input">
-                                <span class="unit">μm</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-width" value="10.0" step="0.1" min="0.1" class="param-input">
+                                <span class="param-unit">μm</span>
+                                <button class="btn-apply" id="btn-apply-width">적용</button>
                             </div>
                         </div>
                         <input type="range" id="slider-width" min="4" max="20" value="10" step="0.5">
@@ -120,7 +125,11 @@
                     <div class="slider-group">
                         <div class="slider-label-row">
                             <span>광 wavelength (λ)</span>
-                            <span class="val-display" id="val-lambda">1.55 μm</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-lambda" value="1.55" step="0.01" min="0.1" class="param-input">
+                                <span class="param-unit">μm</span>
+                                <button class="btn-apply" id="btn-apply-lambda">적용</button>
+                            </div>
                         </div>
                         <input type="range" id="slider-lambda" min="0.8" max="2.0" value="1.55" step="0.05">
                     </div>
@@ -128,7 +137,11 @@
                     <div class="slider-group">
                         <div class="slider-label-row">
                             <span>코어 1 굴절률 ($n_{\text{core1}}$)</span>
-                            <span class="val-display" id="val-ncore1">1.500</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-ncore1" value="1.500" step="0.001" min="1.0" max="4.0" class="param-input">
+                                <span class="param-unit"></span>
+                                <button class="btn-apply" id="btn-apply-ncore1">적용</button>
+                            </div>
                         </div>
                         <input type="range" id="slider-ncore1" min="1.0" max="4.0" value="1.50" step="0.005">
                     </div>
@@ -136,7 +149,11 @@
                     <div class="slider-group">
                         <div class="slider-label-row">
                             <span>코어 2 굴절률 ($n_{\text{core2}}$)</span>
-                            <span class="val-display" id="val-ncore2">1.500</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-ncore2" value="1.500" step="0.001" min="1.0" max="4.0" class="param-input">
+                                <span class="param-unit"></span>
+                                <button class="btn-apply" id="btn-apply-ncore2">적용</button>
+                            </div>
                         </div>
                         <input type="range" id="slider-ncore2" min="1.0" max="4.0" value="1.50" step="0.005">
                     </div>
@@ -144,7 +161,11 @@
                     <div class="slider-group">
                         <div class="slider-label-row">
                             <span>상부 클래딩 굴절률 ($n_{\text{top}}$)</span>
-                            <span class="val-display" id="val-ntop">1.450</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-ntop" value="1.450" step="0.001" min="1.0" max="4.0" class="param-input">
+                                <span class="param-unit"></span>
+                                <button class="btn-apply" id="btn-apply-ntop">적용</button>
+                            </div>
                         </div>
                         <input type="range" id="slider-ntop" min="1.0" max="4.0" value="1.45" step="0.005">
                     </div>
@@ -152,7 +173,11 @@
                     <div class="slider-group">
                         <div class="slider-label-row">
                             <span>중간 클래딩 굴절률 ($n_{\text{mid}}$)</span>
-                            <span class="val-display" id="val-nmid">1.450</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-nmid" value="1.450" step="0.001" min="1.0" max="4.0" class="param-input">
+                                <span class="param-unit"></span>
+                                <button class="btn-apply" id="btn-apply-nmid">적용</button>
+                            </div>
                         </div>
                         <input type="range" id="slider-nmid" min="1.0" max="4.0" value="1.45" step="0.005">
                     </div>
@@ -160,7 +185,11 @@
                     <div class="slider-group">
                         <div class="slider-label-row">
                             <span>하부 클래딩 굴절률 ($n_{\text{bot}}$)</span>
-                            <span class="val-display" id="val-nbot">1.450</span>
+                            <div class="input-actions-row">
+                                <input type="number" id="input-nbot" value="1.450" step="0.001" min="1.0" max="4.0" class="param-input">
+                                <span class="param-unit"></span>
+                                <button class="btn-apply" id="btn-apply-nbot">적용</button>
+                            </div>
                         </div>
                         <input type="range" id="slider-nbot" min="1.0" max="4.0" value="1.45" step="0.005">
                     </div>

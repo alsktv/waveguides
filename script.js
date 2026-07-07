@@ -15,14 +15,6 @@ const sliderNmid = document.getElementById('slider-nmid');
 const sliderNbot = document.getElementById('slider-nbot');
 const sliderSpeed = document.getElementById('slider-speed');
 
-const valGap = document.getElementById('val-gap');
-const valWidth = document.getElementById('val-width');
-const valLambda = document.getElementById('val-lambda');
-const valNcore1 = document.getElementById('val-ncore1');
-const valNcore2 = document.getElementById('val-ncore2');
-const valNtop = document.getElementById('val-ntop');
-const valNmid = document.getElementById('val-nmid');
-const valNbot = document.getElementById('val-nbot');
 const valSpeed = document.getElementById('val-speed');
 
 const btnPlayPause = document.getElementById('btn-play-pause');
@@ -88,7 +80,7 @@ function updatePhysics() {
     if (nCore1 <= cladMax1) {
         nCore1 = cladMax1 + 0.005;
         sliderNcore1.value = nCore1;
-        valNcore1.textContent = nCore1.toFixed(3);
+        document.getElementById('input-ncore1').value = nCore1.toFixed(3);
     }
     
     // 2. Validation for Waveguide 2 (Core 2 must be denser than adjacent claddings)
@@ -96,7 +88,7 @@ function updatePhysics() {
     if (nCore2 <= cladMax2) {
         nCore2 = cladMax2 + 0.005;
         sliderNcore2.value = nCore2;
-        valNcore2.textContent = nCore2.toFixed(3);
+        document.getElementById('input-ncore2').value = nCore2.toFixed(3);
     }
     
     k0 = 2 * Math.PI / lambda;
@@ -227,14 +219,13 @@ function precomputeTransverseModes(norm1, norm2) {
     }
 }
 
-// Render electric field: propagating wave lines + stationary borders + high contrast axes
+// Render electric field: 2D color density map + moving 1D transverse E(y) profile curve + stationary borders
 function drawElectricField(theta, pulseCenter) {
     const width_px = canvas.width;
     const height_px = canvas.height;
     
-    // Clear canvas
-    ctx.fillStyle = '#040711';
-    ctx.fillRect(0, 0, width_px, height_px);
+    const imgData = ctx.createImageData(width_px, height_px);
+    const data = imgData.data;
     
     const w_px = width * pixelScaleY;
     const gap_px = gap * pixelScaleY;
@@ -247,78 +238,105 @@ function drawElectricField(theta, pulseCenter) {
     const beta1 = window.g_beta1;
     const beta2 = window.g_beta2;
     
-    // 1. Draw Waveguide Core Regions - STILL BORDERS AND LOW OPACITY STATIC BACKGROUNDS
-    // Core 1
-    ctx.fillStyle = 'rgba(56, 189, 248, 0.04)';
-    ctx.fillRect(0, y1 - w_px/2, width_px, w_px);
-    // Core 2
-    ctx.fillStyle = 'rgba(244, 63, 94, 0.04)';
-    ctx.fillRect(0, y2 - w_px/2, width_px, w_px);
+    // 1. Draw 2D Phase Wave Packet in the background using color density
+    for (let x = 0; x < width_px; x += 2) {
+        let x_um = x / pixelScaleX;
+        
+        let distToCenter = x_um - pulseCenter;
+        let gauss = Math.exp(- (distToCenter * distToCenter) / (2 * sigmaPulse * sigmaPulse));
+        
+        if (gauss < 0.001) {
+            for (let y = 0; y < height_px; y += 2) {
+                draw2x2Block(data, x, y, width_px, 8, 12, 22);
+            }
+            continue;
+        }
+        
+        let cos_qx = Math.cos(q * x_um);
+        let sin_qx = Math.sin(q * x_um);
+        let cos_b1x = Math.cos(beta1 * x_um - theta);
+        let sin_b1x = Math.sin(beta1 * x_um - theta);
+        let sin_b2x = Math.sin(beta2 * x_um - theta);
+        
+        // Asymmetric Coupled Mode theory amplitudes
+        let c1 = gauss * (cos_qx * cos_b1x + (delta / q) * sin_qx * sin_b1x);
+        let c2 = gauss * (kappa / q) * sin_qx * sin_b2x;
+        
+        for (let y = 0; y < height_px; y += 2) {
+            let E = phi1[y] * c1 + phi2[y] * c2;
+            
+            let r = 8, g = 12, b = 22; // Base dark blue background
+            
+            if (E > 0.015) {
+                let amt = Math.min(1.0, E) * 230;
+                r = Math.round(r + amt * 0.1);
+                g = Math.round(g + amt * 0.85);
+                b = Math.round(b + amt * 1.0);
+            } else if (E < -0.015) {
+                let amt = Math.min(1.0, -E) * 230;
+                r = Math.round(r + amt * 1.0);
+                g = Math.round(g + amt * 0.15);
+                b = Math.round(b + amt * 0.7);
+            }
+            
+            draw2x2Block(data, x, y, width_px, r, g, b);
+        }
+    }
     
-    // Core boundaries (strictly stationary, do not move)
+    ctx.putImageData(imgData, 0, 0);
+    
+    // 2. Draw Waveguide Core Regions - STRICTLY STATIONARY BORDERS AND BACKGROUNDS
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
+    // Core 1 borders
     ctx.moveTo(0, y1 - w_px/2); ctx.lineTo(width_px, y1 - w_px/2);
     ctx.moveTo(0, y1 + w_px/2); ctx.lineTo(width_px, y1 + w_px/2);
+    // Core 2 borders
     ctx.moveTo(0, y2 - w_px/2); ctx.lineTo(width_px, y2 - w_px/2);
     ctx.moveTo(0, y2 + w_px/2); ctx.lineTo(width_px, y2 + w_px/2);
     ctx.stroke();
     
-    // 2. Draw propagating transverse field curves (parallel waves wiggling vertically along x axis)
-    // Spaced by 12px to avoid clutter and prevent them from looking like moving boundaries
-    const stepY = 12;
-    const wiggleScale = 25.0; // Wave wiggle amplitude
+    // 3. Draw Propagating 1D Transverse Electric Field Profile Curve E(y) at the Pulse Center
+    let pulseCenter_px = pulseCenter * pixelScaleX;
     
-    for (let y = 12; y < height_px - 10; y += stepY) {
-        // Highlight core center wave lines to emphasize the mode shape peak
-        let isCoreCenter1 = Math.abs(y - y1) < 6;
-        let isCoreCenter2 = Math.abs(y - y2) < 6;
+    // Draw vertical reference dashed line (local axis) at the center of the propagating pulse
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(pulseCenter_px, 0);
+    ctx.lineTo(pulseCenter_px, height_px);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Draw the 1D transverse profile shape wiggling horizontally around the reference line
+    ctx.strokeStyle = '#ffffff'; // Solid white wave line
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#06b6d4'; // Cyan neon glow
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    
+    let cos_qx_c = Math.cos(q * pulseCenter);
+    let sin_qx_c = Math.sin(q * pulseCenter);
+    let cos_b1x_c = Math.cos(beta1 * pulseCenter - theta);
+    let sin_b1x_c = Math.sin(beta1 * pulseCenter - theta);
+    let sin_b2x_c = Math.sin(beta2 * pulseCenter - theta);
+    
+    let c1_prof = cos_qx_c * cos_b1x_c + (delta / q) * sin_qx_c * sin_b1x_c;
+    let c2_prof = (kappa / q) * sin_qx_c * sin_b2x_c;
+    
+    const profileScale = 50.0; // Profile displacement scaling factor
+    
+    for (let y = 0; y < height_px; y += 2) {
+        let E_prof = phi1[y] * c1_prof + phi2[y] * c2_prof;
+        let x_disp = pulseCenter_px + E_prof * profileScale;
         
-        if (isCoreCenter1) {
-            ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)'; // Bright Cyan for Core 1 center wave
-            ctx.lineWidth = 2.0;
-        } else if (isCoreCenter2) {
-            ctx.strokeStyle = 'rgba(244, 63, 94, 0.85)'; // Bright Pink for Core 2 center wave
-            ctx.lineWidth = 2.0;
-        } else {
-            ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)'; // Neon Green for cladding/evanescent field waves
-            ctx.lineWidth = 1.0;
-        }
-        
-        ctx.beginPath();
-        for (let x = 0; x < width_px; x += 4) {
-            let x_um = x / pixelScaleX;
-            
-            // Gaussian envelope along the propagation axis
-            let distToCenter = x_um - pulseCenter;
-            let gauss = Math.exp(- (distToCenter * distToCenter) / (2 * sigmaPulse * sigmaPulse));
-            
-            let E = 0;
-            if (gauss > 0.001) {
-                // Wave propagation constants (asymmetric Coupled Mode equations along x propagation axis)
-                let cos_qx = Math.cos(q * x_um);
-                let sin_qx = Math.sin(q * x_um);
-                let cos_b1x = Math.cos(beta1 * x_um - theta);
-                let sin_b1x = Math.sin(beta1 * x_um - theta);
-                let sin_b2x = Math.sin(beta2 * x_um - theta);
-                
-                // WG1 input contribution
-                let c1 = gauss * (cos_qx * cos_b1x + (delta / q) * sin_qx * sin_b1x);
-                // WG2 coupling contribution
-                let c2 = gauss * (kappa / q) * sin_qx * sin_b2x;
-                
-                E = phi1[y] * c1 + phi2[y] * c2;
-            }
-            
-            // Vertical displacement from the baseline y
-            let y_disp = y + E * wiggleScale;
-            
-            if (x === 0) ctx.moveTo(x, y_disp);
-            else ctx.lineTo(x, y_disp);
-        }
-        ctx.stroke();
+        if (y === 0) ctx.moveTo(x_disp, y);
+        else ctx.lineTo(x_disp, y);
     }
+    ctx.stroke();
+    ctx.shadowBlur = 0; // Reset shadow glow
     
     // Core & cladding static labels
     ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
@@ -331,7 +349,7 @@ function drawElectricField(theta, pulseCenter) {
     ctx.fillText(`중간 클래딩 (n = ${nMid.toFixed(3)})`, 15, cy + 4);
     ctx.fillText(`하부 클래딩 (n = ${nBot.toFixed(3)})`, 15, y2 + w_px/2 + 14);
     
-    // Draw high contrast coordinate axis indicators
+    // Draw axis arrows & coordinate system details
     drawAxes();
 }
 
@@ -366,6 +384,18 @@ function drawAxes() {
     ctx.font = 'bold 11px Inter';
     ctx.fillText('x (진행 방향)', startX + 55, startY + 4);
     ctx.fillText('y (수직 횡방향)', startX - 12, startY - 56);
+}
+
+// Helper to write a 2x2 pixel block into the ImageData array
+function draw2x2Block(data, x, y, width, r, g, b) {
+    const idx1 = (y * width + x) * 4;
+    const idx2 = ((y + 1) * width + x) * 4;
+    
+    data[idx1] = r; data[idx1+1] = g; data[idx1+2] = b; data[idx1+3] = 255;
+    data[idx1+4] = r; data[idx1+5] = g; data[idx1+6] = b; data[idx1+7] = 255;
+    
+    data[idx2] = r; data[idx2+1] = g; data[idx2+2] = b; data[idx2+3] = 255;
+    data[idx2+4] = r; data[idx2+5] = g; data[idx2+6] = b; data[idx2+7] = 255;
 }
 
 // Draw Longitudinal Power Density Graph along x axis
@@ -464,68 +494,59 @@ function tick() {
     requestAnimationFrame(tick);
 }
 
+// Helper function to bind sliders with numeric input fields and apply buttons
+function bindParam(sliderId, inputId, applyBtnId, minVal, maxVal, isInt, updateVarFn) {
+    const slider = document.getElementById(sliderId);
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(applyBtnId);
+    
+    // Sync slider changes to numerical text field instantly during dragging
+    slider.addEventListener('input', (e) => {
+        let val = parseFloat(e.target.value);
+        input.value = isInt ? val.toFixed(0) : val.toFixed(3);
+        updateVarFn(val);
+        updatePhysics();
+    });
+    
+    // Apply typed value on button click or Enter keypress
+    function applyManualValue() {
+        let val = parseFloat(input.value);
+        if (isNaN(val)) return;
+        
+        // Guard boundaries
+        val = Math.max(minVal, Math.min(maxVal, val));
+        input.value = isInt ? val.toFixed(0) : val.toFixed(3);
+        
+        // Sync slider position if it lies within the slider's track bounds
+        let sliderMin = parseFloat(slider.min);
+        let sliderMax = parseFloat(slider.max);
+        slider.value = Math.max(sliderMin, Math.min(sliderMax, val));
+        
+        updateVarFn(val);
+        updatePhysics();
+    }
+    
+    btn.addEventListener('click', applyManualValue);
+    
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            applyManualValue();
+        }
+    });
+}
+
 // Slider event listeners & display updates
 function setupSliders() {
-    sliderGap.addEventListener('input', (e) => {
-        gap = parseFloat(e.target.value);
-        valGap.textContent = `${gap} μm`;
-        updatePhysics();
-    });
+    bindParam('slider-gap', 'input-gap', 'btn-apply-gap', 1.0, 100.0, false, (v) => { gap = v; });
+    bindParam('slider-width', 'input-width', 'btn-apply-width', 0.1, 100.0, false, (v) => { width = v; });
+    bindParam('slider-lambda', 'input-lambda', 'btn-apply-lambda', 0.1, 10.0, false, (v) => { lambda = v; });
+    bindParam('slider-ncore1', 'input-ncore1', 'btn-apply-ncore1', 1.0, 4.0, false, (v) => { nCore1 = v; });
+    bindParam('slider-ncore2', 'input-ncore2', 'btn-apply-ncore2', 1.0, 4.0, false, (v) => { nCore2 = v; });
+    bindParam('slider-ntop', 'input-ntop', 'btn-apply-ntop', 1.0, 4.0, false, (v) => { nTop = v; });
+    bindParam('slider-nmid', 'input-nmid', 'btn-apply-nmid', 1.0, 4.0, false, (v) => { nMid = v; });
+    bindParam('slider-nbot', 'input-nbot', 'btn-apply-nbot', 1.0, 4.0, false, (v) => { nBot = v; });
     
-    sliderWidth.addEventListener('input', (e) => {
-        width = parseFloat(e.target.value);
-        document.getElementById('input-width').value = width.toFixed(1);
-        updatePhysics();
-    });
-    
-    const inputWidth = document.getElementById('input-width');
-    inputWidth.addEventListener('change', (e) => {
-        let val = parseFloat(e.target.value);
-        if (isNaN(val) || val <= 0.1) {
-            val = 0.5; // Safety guard
-        }
-        width = val;
-        inputWidth.value = width.toFixed(1);
-        sliderWidth.value = Math.max(parseFloat(sliderWidth.min), Math.min(parseFloat(sliderWidth.max), width));
-        updatePhysics();
-    });
-    
-    sliderLambda.addEventListener('input', (e) => {
-        lambda = parseFloat(e.target.value);
-        valLambda.textContent = `${lambda.toFixed(2)} μm`;
-        updatePhysics();
-    });
-    
-    sliderNcore1.addEventListener('input', (e) => {
-        nCore1 = parseFloat(e.target.value);
-        valNcore1.textContent = nCore1.toFixed(3);
-        updatePhysics();
-    });
-
-    sliderNcore2.addEventListener('input', (e) => {
-        nCore2 = parseFloat(e.target.value);
-        valNcore2.textContent = nCore2.toFixed(3);
-        updatePhysics();
-    });
-
-    sliderNtop.addEventListener('input', (e) => {
-        nTop = parseFloat(e.target.value);
-        valNtop.textContent = nTop.toFixed(3);
-        updatePhysics();
-    });
-
-    sliderNmid.addEventListener('input', (e) => {
-        nMid = parseFloat(e.target.value);
-        valNmid.textContent = nMid.toFixed(3);
-        updatePhysics();
-    });
-
-    sliderNbot.addEventListener('input', (e) => {
-        nBot = parseFloat(e.target.value);
-        valNbot.textContent = nBot.toFixed(3);
-        updatePhysics();
-    });
-    
+    // Speed slider
     sliderSpeed.addEventListener('input', (e) => {
         speed = parseFloat(e.target.value);
         valSpeed.textContent = `${speed.toFixed(1)}x`;
@@ -546,14 +567,14 @@ function setupControls() {
     
     btnReset.addEventListener('click', () => {
         time = 0;
-        sliderGap.value = 15; valGap.textContent = '15 μm'; gap = 15;
-        sliderWidth.value = 10; document.getElementById('input-width').value = '10.0'; width = 10;
-        sliderLambda.value = 1.55; valLambda.textContent = '1.55 μm'; lambda = 1.55;
-        sliderNcore1.value = 1.500; valNcore1.textContent = '1.500'; nCore1 = 1.500;
-        sliderNcore2.value = 1.500; valNcore2.textContent = '1.500'; nCore2 = 1.500;
-        sliderNtop.value = 1.450; valNtop.textContent = '1.450'; nTop = 1.450;
-        sliderNmid.value = 1.450; valNmid.textContent = '1.450'; nMid = 1.450;
-        sliderNbot.value = 1.450; valNbot.textContent = '1.450'; nBot = 1.450;
+        sliderGap.value = 15; document.getElementById('input-gap').value = '15.000'; gap = 15;
+        sliderWidth.value = 10; document.getElementById('input-width').value = '10.000'; width = 10;
+        sliderLambda.value = 1.55; document.getElementById('input-lambda').value = '1.550'; lambda = 1.55;
+        sliderNcore1.value = 1.500; document.getElementById('input-ncore1').value = '1.500'; nCore1 = 1.500;
+        sliderNcore2.value = 1.500; document.getElementById('input-ncore2').value = '1.500'; nCore2 = 1.500;
+        sliderNtop.value = 1.450; document.getElementById('input-ntop').value = '1.450'; nTop = 1.450;
+        sliderNmid.value = 1.450; document.getElementById('input-nmid').value = '1.450'; nMid = 1.450;
+        sliderNbot.value = 1.450; document.getElementById('input-nbot').value = '1.450'; nBot = 1.450;
         sliderSpeed.value = 1.0; valSpeed.textContent = '1.0x'; speed = 1.0;
         
         isPlaying = true;
