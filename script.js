@@ -42,16 +42,6 @@ let nMid = 1.450;     // Middle cladding index
 let nBot = 1.450;     // Bottom cladding index
 let speed = 1.0;      // Time speed multiplier
 
-// Interactive Profile Probe tracking
-let trackerX = 200.0; // Probe position in um along the waveguide
-
-// Register mouse move to slide the vertical probe line and inspect the transverse profile
-canvas.addEventListener('mousemove', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const x_px = e.clientX - rect.left;
-    trackerX = Math.max(0.0, Math.min(400.0, x_px / pixelScaleX));
-});
-
 // Solved constants for Asymmetric waveguide layers
 let k0, kx1, kx2, gTop, gMid1, gMid2, gBot, phi0, psi0, kappa;
 let phi1 = []; // Precomputed transverse profile for WG1
@@ -230,7 +220,7 @@ function precomputeTransverseModes(norm1, norm2) {
 }
 
 // Render electric field: 2D Continuous Wave color map + Propagating 1D Transverse E(y) profile curve + Stationary borders
-function drawElectricField(theta) {
+function drawElectricField(theta, probeX) {
     const width_px = canvas.width;
     const height_px = canvas.height;
     
@@ -297,16 +287,16 @@ function drawElectricField(theta) {
     ctx.moveTo(0, y2 + w_px/2); ctx.lineTo(width_px, y2 + w_px/2);
     ctx.stroke();
     
-    // 3. Draw Propagating 1D Transverse Electric Field Profile Curve E(y) at the Probe Position
-    let trackerX_px = trackerX * pixelScaleX;
+    // 3. Draw Propagating 1D Transverse Electric Field Profile Curve E(y) at the moving probe position
+    let probeX_px = probeX * pixelScaleX;
     
     // Draw vertical reference dashed line (local axis) at the probe position
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
-    ctx.moveTo(trackerX_px, 0);
-    ctx.lineTo(trackerX_px, height_px);
+    ctx.moveTo(probeX_px, 0);
+    ctx.lineTo(probeX_px, height_px);
     ctx.stroke();
     ctx.setLineDash([]);
     
@@ -317,11 +307,11 @@ function drawElectricField(theta) {
     ctx.shadowBlur = 8;
     ctx.beginPath();
     
-    let cos_qx_c = Math.cos(q * trackerX);
-    let sin_qx_c = Math.sin(q * trackerX);
-    let cos_b1x_c = Math.cos(beta1 * trackerX - theta);
-    let sin_b1x_c = Math.sin(beta1 * trackerX - theta);
-    let sin_b2x_c = Math.sin(beta2 * trackerX - theta);
+    let cos_qx_c = Math.cos(q * probeX);
+    let sin_qx_c = Math.sin(q * probeX);
+    let cos_b1x_c = Math.cos(beta1 * probeX - theta);
+    let sin_b1x_c = Math.sin(beta1 * probeX - theta);
+    let sin_b2x_c = Math.sin(beta2 * probeX - theta);
     
     let c1_prof = cos_qx_c * cos_b1x_c + (delta / q) * sin_qx_c * sin_b1x_c;
     let c2_prof = (kappa / q) * sin_qx_c * sin_b2x_c;
@@ -330,7 +320,7 @@ function drawElectricField(theta) {
     
     for (let y = 0; y < height_px; y += 2) {
         let E_prof = phi1[y] * c1_prof + phi2[y] * c2_prof;
-        let x_disp = trackerX_px + E_prof * profileScale;
+        let x_disp = probeX_px + E_prof * profileScale;
         
         if (y === 0) ctx.moveTo(x_disp, y);
         else ctx.lineTo(x_disp, y);
@@ -399,7 +389,7 @@ function draw2x2Block(data, x, y, width, r, g, b) {
 }
 
 // Draw Longitudinal Power Density Graph along x axis
-function drawPowerGraph() {
+function drawPowerGraph(probeX) {
     const w = graphCanvas.width;
     const h = graphCanvas.height;
     
@@ -468,13 +458,13 @@ function drawPowerGraph() {
     gCtx.stroke();
     
     // 3. Draw Vertical Probe Position Indicator in the Power Graph
-    let trackerX_graph_px = 40 + (trackerX / 400) * (w - 60);
+    let probeX_graph_px = 40 + (probeX / 400) * (w - 60);
     gCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
     gCtx.lineWidth = 1;
     gCtx.setLineDash([2, 2]);
     gCtx.beginPath();
-    gCtx.moveTo(trackerX_graph_px, h * 0.15);
-    gCtx.lineTo(trackerX_graph_px, h * 0.85);
+    gCtx.moveTo(probeX_graph_px, h * 0.15);
+    gCtx.lineTo(probeX_graph_px, h * 0.85);
     gCtx.stroke();
     gCtx.setLineDash([]);
     
@@ -492,8 +482,11 @@ function tick() {
         time += 0.05 * speed;
     }
     
-    drawElectricField(time);
-    drawPowerGraph();
+    // Auto-propagate probeX from left (0 um) to right (400 um) over time
+    let probeX = (time * 10) % 400;
+    
+    drawElectricField(time, probeX);
+    drawPowerGraph(probeX);
     
     requestAnimationFrame(tick);
 }
@@ -584,8 +577,6 @@ function setupControls() {
         isPlaying = true;
         playIcon.style.display = 'none';
         pauseIcon.style.display = 'inline';
-        
-        trackerX = 200.0;
         
         updatePhysics();
     });
