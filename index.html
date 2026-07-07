@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="이중 도파로 전자기파 시뮬레이터 - 전기장 세기 및 에바네센트 결합 실시간 시각화">
+    <title>Coupled Waveguide Electromagnetics Simulator</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glass-bg"></div>
+    <div class="glass-bg-2"></div>
+
+    <header class="app-header">
+        <div class="logo">
+            <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <span>Waveguide Lab</span>
+        </div>
+        <div class="header-tag">Cloudflare Pages 배포됨</div>
+    </header>
+
+    <main class="dashboard-container">
+        <section class="welcome-hero">
+            <h1 class="gradient-text">이중 도파로 전자기파 시뮬레이션</h1>
+            <p class="subtitle">두 개의 인접한 도파로를 통해 진행하는 전자기파의 전기장 세기와 에너지 전이(에바네센트 결합) 현상을 실시간으로 관찰할 수 있는 물리학 시뮬레이터입니다.</p>
+        </section>
+
+        <div class="simulator-layout">
+            <!-- Left Panel: Simulation Canvas & Real-time Graph -->
+            <div class="main-panel">
+                <div class="card canvas-card">
+                    <div class="card-header">
+                        <h2>전기장 프로파일 시각화</h2>
+                        <div class="canvas-controls">
+                            <button id="btn-play-pause" class="icon-btn" title="일시정지/재생">
+                                <span class="play-icon">▶</span>
+                                <span class="pause-icon" style="display: none;">❚❚</span>
+                            </button>
+                            <button id="btn-reset" class="icon-btn" title="초기화">⟲</button>
+                        </div>
+                    </div>
+                    <div class="canvas-wrapper">
+                        <canvas id="sim-canvas" width="800" height="360"></canvas>
+                        <div class="canvas-overlay-text" id="canvas-loading" style="display: none;">연산 중...</div>
+                    </div>
+                </div>
+
+                <div class="card graph-card">
+                    <div class="card-header">
+                        <h2>위치별 도파로 전력 밀도</h2>
+                        <span class="badge">Longitudinal Power</span>
+                    </div>
+                    <div class="graph-wrapper">
+                        <canvas id="graph-canvas" width="800" height="180"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Controls & Sliders -->
+            <div class="control-panel">
+                <div class="card controls-card">
+                    <div class="card-header">
+                        <h2>매개변수 제어</h2>
+                    </div>
+                    
+                    <!-- Mode Selection -->
+                    <div class="control-group">
+                        <label>입사 모드 선택</label>
+                        <div class="mode-select-grid">
+                            <button class="mode-btn active" data-launch="wg1">도파로 1 입사</button>
+                            <button class="mode-btn" data-launch="wg2">도파로 2 입사</button>
+                            <button class="mode-btn" data-launch="symmetric">대칭 모드 (Even)</button>
+                            <button class="mode-btn" data-launch="antisymmetric">반대칭 모드 (Odd)</button>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Sliders -->
+                    <div class="slider-group">
+                        <div class="slider-label-row">
+                            <span>도파로 간격 (Gap)</span>
+                            <span class="val-display" id="val-gap">15 μm</span>
+                        </div>
+                        <input type="range" id="slider-gap" min="5" max="40" value="15" step="1">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label-row">
+                            <span>도파로 너비 (Width)</span>
+                            <span class="val-display" id="val-width">10 μm</span>
+                        </div>
+                        <input type="range" id="slider-width" min="4" max="20" value="10" step="0.5">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label-row">
+                            <span>광 wavelength (λ)</span>
+                            <span class="val-display" id="val-lambda">1.55 μm</span>
+                        </div>
+                        <input type="range" id="slider-lambda" min="0.8" max="2.0" value="1.55" step="0.05">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label-row">
+                            <span>굴절률 차이 (Δn)</span>
+                            <span class="val-display" id="val-dn">0.03</span>
+                        </div>
+                        <input type="range" id="slider-dn" min="0.01" max="0.10" value="0.03" step="0.005">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label-row">
+                            <span>시뮬레이션 시간 속도</span>
+                            <span class="val-display" id="val-speed">1.0x</span>
+                        </div>
+                        <input type="range" id="slider-speed" min="0.1" max="3.0" value="1.0" step="0.1">
+                    </div>
+                </div>
+
+                <!-- Physics Info Card -->
+                <div class="card info-card">
+                    <div class="card-header">
+                        <h2>물리학적 원리</h2>
+                        <span class="badge">Theory</span>
+                    </div>
+                    <div class="theory-content">
+                        <h3>에바네센트 결합 (Evanescent Coupling)</h3>
+                        <p>빛이 굴절률이 높은 코어 내에 갇혀 도파할 때, 코어 경계면 바깥쪽(클래딩)으로 빛이 지수함수적으로 감쇄하는 <strong>에바네센트 파(Evanescent wave)</strong>가 형성됩니다.</p>
+                        <p>두 도파로가 서로 매우 가까워지면, 한쪽 도파로의 에바네센트 장이 인접한 도파로의 코어 영역과 겹치게 됩니다. 이로 인해 두 도파로 간에 빛의 에너지가 주기적으로 상호 교환되는 <strong>결합(Coupling)</strong> 현상이 일어납니다.</p>
+                        <div class="formula">
+                            $$P_1(z) = P_0 \cos^2(\kappa z)$$
+                            $$P_2(z) = P_0 \sin^2(\kappa z)$$
+                        </div>
+                        <p>여기서 $\kappa$는 결합 계수이며, 도파로 사이의 간격이 좁을수록 결합 주기가 짧아집니다. 이 원리는 현대 광통신 필터 및 광 스위치 설계의 근간이 됩니다.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="app-footer">
+        <p>&copy; 2026 Waveguide Electromagnetics Lab. All rights reserved.</p>
+    </footer>
+
+    <!-- MathJax for rendering physics formulas nicely -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']]
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
