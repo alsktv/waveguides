@@ -127,7 +127,7 @@
                             <span>코어 1 굴절률 ($n_{\text{core1}}$)</span>
                             <span class="val-display" id="val-ncore1">1.500</span>
                         </div>
-                        <input type="range" id="slider-ncore1" min="1.45" max="1.65" value="1.50" step="0.005">
+                        <input type="range" id="slider-ncore1" min="1.0" max="4.0" value="1.50" step="0.005">
                     </div>
 
                     <div class="slider-group">
@@ -135,7 +135,7 @@
                             <span>코어 2 굴절률 ($n_{\text{core2}}$)</span>
                             <span class="val-display" id="val-ncore2">1.500</span>
                         </div>
-                        <input type="range" id="slider-ncore2" min="1.45" max="1.65" value="1.50" step="0.005">
+                        <input type="range" id="slider-ncore2" min="1.0" max="4.0" value="1.50" step="0.005">
                     </div>
 
                     <div class="slider-group">
@@ -143,7 +143,7 @@
                             <span>상부 클래딩 굴절률 ($n_{\text{top}}$)</span>
                             <span class="val-display" id="val-ntop">1.450</span>
                         </div>
-                        <input type="range" id="slider-ntop" min="1.35" max="1.55" value="1.45" step="0.005">
+                        <input type="range" id="slider-ntop" min="1.0" max="4.0" value="1.45" step="0.005">
                     </div>
 
                     <div class="slider-group">
@@ -151,7 +151,7 @@
                             <span>중간 클래딩 굴절률 ($n_{\text{mid}}$)</span>
                             <span class="val-display" id="val-nmid">1.450</span>
                         </div>
-                        <input type="range" id="slider-nmid" min="1.35" max="1.55" value="1.45" step="0.005">
+                        <input type="range" id="slider-nmid" min="1.0" max="4.0" value="1.45" step="0.005">
                     </div>
 
                     <div class="slider-group">
@@ -159,7 +159,7 @@
                             <span>하부 클래딩 굴절률 ($n_{\text{bot}}$)</span>
                             <span class="val-display" id="val-nbot">1.450</span>
                         </div>
-                        <input type="range" id="slider-nbot" min="1.35" max="1.55" value="1.45" step="0.005">
+                        <input type="range" id="slider-nbot" min="1.0" max="4.0" value="1.45" step="0.005">
                     </div>
 
                     <div class="slider-group">
@@ -205,12 +205,12 @@
                             $$\Phi_{\text{cutoff}} = k_{x,\text{cutoff}} w - \arctan\left(\frac{\gamma_{\text{other},\text{cutoff}}}{k_{x,\text{cutoff}}}\right)$$
                         </div>
 
-                        <h4>4. 결합계수 ($\kappa$) 및 진행 방향($z$)의 전력 분포</h4>
+                        <h4>4. 결합계수 ($\kappa$) 및 진행 방향($x$)의 전력 분포</h4>
                         <div class="formula">
-                            $$P_1(z) = P_0 g(z)^2 \left[ \cos^2(q z) + \frac{\delta^2}{q^2} \sin^2(q z) \right]$$
-                            $$P_2(z) = P_0 g(z)^2 \left[ \frac{\kappa^2}{q^2} \sin^2(q z) \right]$$
+                            $$P_1(x) = P_0 g(x)^2 \left[ \cos^2(q x) + \frac{\delta^2}{q^2} \sin^2(q x) \right]$$
+                            $$P_2(x) = P_0 g(x)^2 \left[ \frac{\kappa^2}{q^2} \sin^2(q x) \right]$$
                         </div>
-                        <p class="formula-note">여기서 $g(z)$는 가우시안 포락선, $\delta = (\beta_1 - \beta_2)/2$는 위상 불일치 상수, $q = \sqrt{\kappa^2 + \delta^2}$ 입니다.</p>
+                        <p class="formula-note">여기서 $g(x)$는 가우시안 포락선, $\delta = (\beta_1 - \beta_2)/2$는 위상 불일치 상수, $q = \sqrt{\kappa^2 + \delta^2}$ 입니다.</p>
                     </div>
                 </div>
             </div>

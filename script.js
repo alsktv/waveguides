@@ -31,7 +31,9 @@ const playIcon = btnPlayPause.querySelector('.play-icon');
 const pauseIcon = btnPlayPause.querySelector('.pause-icon');
 
 // Simulation Constants & Scale Factors
-const pixelScaleZ = 2.0; 
+// Horizontal: x-direction (propagation axis). 800px = 400 um (1 px = 0.5 um, pixelScaleX = 2 px/um)
+// Vertical: y-direction (transverse axis). 360px = 120 um (1 px = 0.33 um, pixelScaleY = 3 px/um)
+const pixelScaleX = 2.0; 
 const pixelScaleY = 3.0;
 
 let isPlaying = true;
@@ -295,35 +297,36 @@ function drawElectricField(theta, pulseCenter) {
         ctx.strokeStyle = color;
         ctx.lineWidth = (Math.abs(y - y1) <= w_px/2 || Math.abs(y - y2) <= w_px/2) ? 1.5 : 1.0;
         
-        for (let z = 0; z < width_px; z += 4) {
-            let z_um = z / pixelScaleZ;
+        // Loop over horizontal x axis (propagation)
+        for (let x = 0; x < width_px; x += 4) {
+            let x_um = x / pixelScaleX;
             
             // Gaussian envelope
-            let distToCenter = z_um - pulseCenter;
+            let distToCenter = x_um - pulseCenter;
             let gauss = Math.exp(- (distToCenter * distToCenter) / (2 * sigmaPulse * sigmaPulse));
             
             let E = 0;
             if (gauss > 0.001) {
-                // Wave propagation constants (asymmetric Coupled Mode equations)
-                let cos_qz = Math.cos(q * z_um);
-                let sin_qz = Math.sin(q * z_um);
-                let cos_b1z = Math.cos(beta1 * z_um - theta);
-                let sin_b1z = Math.sin(beta1 * z_um - theta);
-                let sin_b2z = Math.sin(beta2 * z_um - theta);
+                // Wave propagation constants (asymmetric Coupled Mode equations along x propagation axis)
+                let cos_qx = Math.cos(q * x_um);
+                let sin_qx = Math.sin(q * x_um);
+                let cos_b1x = Math.cos(beta1 * x_um - theta);
+                let sin_b1x = Math.sin(beta1 * x_um - theta);
+                let sin_b2x = Math.sin(beta2 * x_um - theta);
                 
                 // WG1 input contribution
-                let c1 = gauss * (cos_qz * cos_b1z + (delta / q) * sin_qz * sin_b1z);
+                let c1 = gauss * (cos_qx * cos_b1x + (delta / q) * sin_qx * sin_b1x);
                 // WG2 coupling contribution (evanescent field transfer)
-                let c2 = gauss * (kappa / q) * sin_qz * sin_b2z;
+                let c2 = gauss * (kappa / q) * sin_qx * sin_b2x;
                 
                 E = phi1[y] * c1 + phi2[y] * c2;
             }
             
-            // Offset coordinates horizontally/vertically (displacement waveform)
+            // Offset coordinates horizontally/vertically (displacement waveform along y axis)
             let y_disp = y + E * wiggleScale;
             
-            if (z === 0) ctx.moveTo(z, y_disp);
-            else ctx.lineTo(z, y_disp);
+            if (x === 0) ctx.moveTo(x, y_disp);
+            else ctx.lineTo(x, y_disp);
         }
         ctx.stroke();
     }
@@ -340,7 +343,7 @@ function drawElectricField(theta, pulseCenter) {
     ctx.fillText(`하부 클래딩 (n = ${nBot.toFixed(3)})`, 15, y2 + w_px/2 + 14);
 }
 
-// Draw Longitudinal Power Density Graph
+// Draw Longitudinal Power Density Graph along x axis
 function drawPowerGraph(pulseCenter) {
     const w = graphCanvas.width;
     const h = graphCanvas.height;
@@ -359,8 +362,8 @@ function drawPowerGraph(pulseCenter) {
         gCtx.stroke();
     }
     
-    for (let z_val = 0; z_val <= 400; z_val += 100) {
-        let x_px = 40 + (z_val / 400) * (w - 60);
+    for (let x_val = 0; x_val <= 400; x_val += 100) {
+        let x_px = 40 + (x_val / 400) * (w - 60);
         gCtx.beginPath();
         gCtx.moveTo(x_px, h * 0.15);
         gCtx.lineTo(x_px, h * 0.85);
@@ -368,7 +371,7 @@ function drawPowerGraph(pulseCenter) {
         
         gCtx.fillStyle = 'rgba(255,255,255,0.3)';
         gCtx.font = '9px Fira Code';
-        gCtx.fillText(`${z_val}um`, x_px - 12, h * 0.95);
+        gCtx.fillText(`${x_val}um`, x_px - 12, h * 0.95);
     }
     
     gCtx.fillStyle = 'rgba(255, 255, 255, 0.4)';
@@ -387,10 +390,10 @@ function drawPowerGraph(pulseCenter) {
     gCtx.strokeStyle = '#38bdf8'; // Cyan
     gCtx.beginPath();
     for (let x = 40; x < w - 20; x++) {
-        let z_um = ((x - 40) / (w - 60)) * 400;
-        let distToCenter = z_um - pulseCenter;
+        let x_um = ((x - 40) / (w - 60)) * 400;
+        let distToCenter = x_um - pulseCenter;
         let gauss = Math.exp(- (distToCenter * distToCenter) / (2 * sigmaPulse * sigmaPulse));
-        let p1 = gauss * gauss * (Math.pow(Math.cos(q * z_um), 2) + Math.pow(delta / q, 2) * Math.pow(Math.sin(q * z_um), 2));
+        let p1 = gauss * gauss * (Math.pow(Math.cos(q * x_um), 2) + Math.pow(delta / q, 2) * Math.pow(Math.sin(q * x_um), 2));
         
         let y_px = h * 0.85 - p1 * (h * 0.7);
         if (x === 40) gCtx.moveTo(x, y_px);
@@ -402,10 +405,10 @@ function drawPowerGraph(pulseCenter) {
     gCtx.strokeStyle = '#f43f5e'; // Pink
     gCtx.beginPath();
     for (let x = 40; x < w - 20; x++) {
-        let z_um = ((x - 40) / (w - 60)) * 400;
-        let distToCenter = z_um - pulseCenter;
+        let x_um = ((x - 40) / (w - 60)) * 400;
+        let distToCenter = x_um - pulseCenter;
         let gauss = Math.exp(- (distToCenter * distToCenter) / (2 * sigmaPulse * sigmaPulse));
-        let p2 = gauss * gauss * Math.pow(kappa / q, 2) * Math.pow(Math.sin(q * z_um), 2);
+        let p2 = gauss * gauss * Math.pow(kappa / q, 2) * Math.pow(Math.sin(q * x_um), 2);
         
         let y_px = h * 0.85 - p2 * (h * 0.7);
         if (x === 40) gCtx.moveTo(x, y_px);
@@ -427,7 +430,7 @@ function tick() {
         time += 0.05 * speed;
     }
     
-    // Group velocity movement for Gaussian pulse center (loops along z)
+    // Group velocity movement for Gaussian pulse center (loops along x propagation direction)
     let pulseCenter = (time * 12) % (400 + 160) - 80;
     
     drawElectricField(time, pulseCenter);
