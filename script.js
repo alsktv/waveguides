@@ -343,37 +343,76 @@ function drawElectricField(theta, probeX) {
     drawAxes();
 }
 
-// Draw Coordinate Axis Indicator in the corner of the canvas
+// Draw Coordinate Axes Ticks and Labels (linked to physical scale and user parameters)
 function drawAxes() {
-    const startX = 40;
-    const startY = canvas.height - 40;
-    
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-    ctx.lineWidth = 2.0;
-    
-    // X Axis arrow (propagation along waveguide)
+    // 1. Y Axis Ticks & Labels (Transverse axis)
+    // Draw vertical axis line at x = 40px
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1.0;
     ctx.beginPath();
-    ctx.moveTo(startX, startY);
-    ctx.lineTo(startX + 50, startY);
-    ctx.lineTo(startX + 44, startY - 4);
-    ctx.moveTo(startX + 50, startY);
-    ctx.lineTo(startX + 44, startY + 4);
+    ctx.moveTo(40, 10);
+    ctx.lineTo(40, 350);
     ctx.stroke();
     
-    // Y Axis arrow (transverse across waveguide, pointing upward)
+    // Draw tick marks and labels
+    const yTicks = [20, 100, 180, 260, 340];
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.font = '9px Fira Code, monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    
+    yTicks.forEach(y => {
+        // Draw tick mark line (horizontal, 6px wide)
+        ctx.beginPath();
+        ctx.moveTo(34, y);
+        ctx.lineTo(40, y);
+        ctx.stroke();
+        
+        // Calculate physical Y coordinate in um: (y - 180) / pixelScaleY
+        let y_um = (y - 180) / pixelScaleY;
+        // Format with sign and 1 decimal place (except 0)
+        let labelText = Math.abs(y_um) < 0.001 ? '0.0' : (y_um > 0 ? '+' : '') + y_um.toFixed(1);
+        ctx.fillText(labelText + ' μm', 30, y);
+    });
+    
+    // Label for Y Axis at the top
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 10px Inter';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('y (수직 횡방향)', 10, 15);
+    
+    // 2. X Axis Ticks & Labels (Propagation axis)
+    // Draw horizontal axis line at y = 340px
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.beginPath();
-    ctx.moveTo(startX, startY);
-    ctx.lineTo(startX, startY - 50);
-    ctx.lineTo(startX - 4, startY - 44);
-    ctx.moveTo(startX, startY - 50);
-    ctx.lineTo(startX + 4, startY - 44);
+    ctx.moveTo(40, 340);
+    ctx.lineTo(780, 340);
     ctx.stroke();
     
-    // Labels
-    ctx.font = 'bold 11px Inter';
-    ctx.fillText('x (진행 방향)', startX + 55, startY + 4);
-    ctx.fillText('y (수직 횡방향)', startX - 12, startY - 56);
+    // Draw tick marks and labels
+    const xTicks = [40, 220, 400, 580, 760];
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.font = '9px Fira Code, monospace';
+    
+    xTicks.forEach(x => {
+        // Draw tick mark line (vertical, 6px tall)
+        ctx.beginPath();
+        ctx.moveTo(x, 340);
+        ctx.lineTo(x, 346);
+        ctx.stroke();
+        
+        // Calculate physical X coordinate in um: (x - 40) / pixelScaleX
+        let x_um = (x - 40) / pixelScaleX;
+        ctx.fillText(x_um.toFixed(0) + ' μm', x, 348);
+    });
+    
+    // Label for X Axis at the right end
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 10px Inter';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('x (진행 방향) →', 780, 325);
 }
 
 // Helper to write a 2x2 pixel block into the ImageData array
