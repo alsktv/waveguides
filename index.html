@@ -70,14 +70,12 @@
                         <h2>매개변수 제어</h2>
                     </div>
                     
-                    <!-- Mode Selection -->
+                    <!-- Launch Mode Status -->
                     <div class="control-group">
-                        <label>입사 모드 선택</label>
-                        <div class="mode-select-grid">
-                            <button class="mode-btn active" data-launch="wg1">도파로 1 입사</button>
-                            <button class="mode-btn" data-launch="wg2">도파로 2 입사</button>
-                            <button class="mode-btn" data-launch="symmetric">대칭 모드 (Even)</button>
-                            <button class="mode-btn" data-launch="antisymmetric">반대칭 모드 (Odd)</button>
+                        <label>입사 모드 정보</label>
+                        <div class="launch-info-badge">
+                            <span class="pulse-dot"></span>
+                            <span>도파로 1로 가우시안 펄스 입사</span>
                         </div>
                     </div>
 
@@ -110,10 +108,18 @@
 
                     <div class="slider-group">
                         <div class="slider-label-row">
-                            <span>굴절률 차이 (Δn)</span>
-                            <span class="val-display" id="val-dn">0.03</span>
+                            <span>코어 굴절률 ($n_{\text{core}}$)</span>
+                            <span class="val-display" id="val-ncore">1.500</span>
                         </div>
-                        <input type="range" id="slider-dn" min="0.01" max="0.10" value="0.03" step="0.005">
+                        <input type="range" id="slider-ncore" min="1.45" max="1.65" value="1.50" step="0.005">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label-row">
+                            <span>클래딩 굴절률 ($n_{\text{clad}}$)</span>
+                            <span class="val-display" id="val-nclad">1.450</span>
+                        </div>
+                        <input type="range" id="slider-nclad" min="1.35" max="1.55" value="1.45" step="0.005">
                     </div>
 
                     <div class="slider-group">
