@@ -290,17 +290,7 @@ function drawElectricField(theta, probeX) {
     // 3. Draw Propagating 1D Transverse Electric Field Profile Curve E(y) at the moving probe position
     let probeX_px = probeX * pixelScaleX;
     
-    // Draw vertical reference dashed line (local axis) at the probe position
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(probeX_px, 0);
-    ctx.lineTo(probeX_px, height_px);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    
-    // Draw the 1D transverse profile shape wiggling horizontally around the probe reference line
+    // Draw the 1D transverse profile shape wiggling horizontally around the probe position
     ctx.strokeStyle = '#ffffff'; // Solid white wave line
     ctx.lineWidth = 2.5;
     ctx.shadowColor = '#06b6d4'; // Cyan neon glow
