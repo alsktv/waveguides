@@ -459,3 +459,43 @@ input[type="range"]::-webkit-slider-thumb:hover {
     50% { transform: scale(1.2); opacity: 1; }
     100% { transform: scale(0.9); opacity: 0.6; }
 }
+
+/* Guided Mode Status Displays */
+.mode-status-container {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-stroke);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.mode-status-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.mode-status-item strong {
+    color: var(--primary);
+    font-family: 'Fira Code', monospace;
+    font-weight: 600;
+}
+
+.mode-status-note {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.4rem;
+    font-style: italic;
+    line-height: 1.4;
+}
+
+.formula-note {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin: 0.5rem 0;
+    line-height: 1.4;
+}

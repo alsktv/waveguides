@@ -79,6 +79,22 @@
                         </div>
                     </div>
 
+                    <!-- Guided Mode Status Display -->
+                    <div class="control-group">
+                        <label>도파로 모드 상태</label>
+                        <div class="mode-status-container">
+                            <div class="mode-status-item">
+                                <span>도파로 1 모드 개수 (M1):</span>
+                                <strong id="mode-count-1">1개</strong>
+                            </div>
+                            <div class="mode-status-item">
+                                <span>도파로 2 모드 개수 (M2):</span>
+                                <strong id="mode-count-2">1개</strong>
+                            </div>
+                        </div>
+                        <p class="mode-status-note">* 다중 모드 발생 시, 기본 모드(m = 0)만 시뮬레이션에 렌더링됩니다.</p>
+                    </div>
+
                     <div class="divider"></div>
 
                     <!-- Sliders -->
@@ -163,13 +179,38 @@
                     </div>
                     <div class="theory-content">
                         <h3>에바네센트 결합 (Evanescent Coupling)</h3>
-                        <p>빛이 굴절률이 높은 코어 내에 갇혀 도파할 때, 코어 경계면 바깥쪽(클래딩)으로 빛이 지수함수적으로 감쇄하는 <strong>에바네센트 파(Evanescent wave)</strong>가 형성됩니다.</p>
-                        <p>두 도파로가 서로 매우 가까워지면, 한쪽 도파로의 에바네센트 장이 인접한 도파로의 코어 영역과 겹치게 됩니다. 이로 인해 두 도파로 간에 빛의 에너지가 주기적으로 상호 교환되는 <strong>결합(Coupling)</strong> 현상이 일어납니다.</p>
+                        <p>빛이 굴절률이 높은 코어 내에 갇혀 도파할 때, 코어 경계면 바깥쪽(클래딩)으로 빛이 지수함수적으로 감쇄하는 <strong>에바네센트 파(Evanescent wave)</strong>가 형성됩니다. 두 도파로가 서로 매우 가까워지면, 한쪽 도파로의 에바네센트 장이 인접한 도파로의 코어 영역과 겹쳐서 에너지가 주기적으로 상호 교환됩니다.</p>
+
+                        <h3>수학적 전자기장 모델 공식</h3>
+                        <p>본 시뮬레이터는 아래의 5층 비대칭 평판 도파로 전자기 방정식을 실시간 수치 해석하여 전기장 요동을 시각화합니다.</p>
+                        
+                        <h4>1. 굴절률 프로파일 $n(y)$</h4>
                         <div class="formula">
-                            $$P_1(z) = P_0 \cos^2(\kappa z)$$
-                            $$P_2(z) = P_0 \sin^2(\kappa z)$$
+                            $$n(y) = \begin{cases} n_{\text{top}} & (y < y_1 - w/2) \\ n_{\text{core1}} & (|y - y_1| \le w/2) \\ n_{\text{mid}} & (y_1 + w/2 < y < y_2 - w/2) \\ n_{\text{core2}} & (|y - y_2| \le w/2) \\ n_{\text{bot}} & (y > y_2 + w/2) \end{cases}$$
                         </div>
-                        <p>여기서 $\kappa$는 결합 계수이며, 도파로 사이의 간격이 좁을수록 결합 주기가 짧아집니다. 이 원리는 현대 광통신 필터 및 광 스위치 설계의 근간이 됩니다.</p>
+
+                        <h4>2. 단일 도파로 횡방향 전기장 분포 $\phi(y)$ (경계조건 만족)</h4>
+                        <div class="formula">
+                            $$\phi_1(y) = \begin{cases} \cos(k_{x1} \frac{w}{2} + \phi_0) e^{\gamma_{\text{top}} (y - y_1 + \frac{w}{2})} & (y < y_1 - \frac{w}{2}) \\ \cos(k_{x1}(y - y_1) - \phi_0) & (|y - y_1| \le \frac{w}{2}) \\ \cos(k_{x1} \frac{w}{2} - \phi_0) e^{-\gamma_{\text{mid1}} (y - y_1 - \frac{w}{2})} & (y > y_1 + \frac{w}{2}) \end{cases}$$
+                        </div>
+                        <p class="formula-note">여기서 $k_{x1} = \sqrt{k_0^2 n_{\text{core1}}^2 - \beta_1^2}$ 이고, $\gamma_j = \sqrt{\beta_1^2 - k_0^2 n_j^2}$ 이며, 경계조건에 의해 결정되는 위상 상수 $\phi_0$는 다음과 같습니다:</p>
+                        <div class="formula">
+                            $$\phi_0 = \frac{1}{2} \left[ \arctan\left(\frac{\gamma_{\text{top}}}{k_{x1}}\right) - \arctan\left(\frac{\gamma_{\text{mid1}}}{k_{x1}}\right) \right]$$
+                        </div>
+
+                        <h4>3. 허용 도파 모드 개수 ($M$) 연산 공식</h4>
+                        <p>비대칭 slab 구조에서 차단 조건(Cutoff) $\beta = k_0 \max(n_L, n_R)$을 대입하여 허용되는 유도 모드의 개수를 구합니다:</p>
+                        <div class="formula">
+                            $$M = 1 + \left\lfloor \frac{\Phi_{\text{cutoff}}}{\pi} \right\rfloor$$
+                            $$\Phi_{\text{cutoff}} = k_{x,\text{cutoff}} w - \arctan\left(\frac{\gamma_{\text{other},\text{cutoff}}}{k_{x,\text{cutoff}}}\right)$$
+                        </div>
+
+                        <h4>4. 결합계수 ($\kappa$) 및 진행 방향($z$)의 전력 분포</h4>
+                        <div class="formula">
+                            $$P_1(z) = P_0 g(z)^2 \left[ \cos^2(q z) + \frac{\delta^2}{q^2} \sin^2(q z) \right]$$
+                            $$P_2(z) = P_0 g(z)^2 \left[ \frac{\kappa^2}{q^2} \sin^2(q z) \right]$$
+                        </div>
+                        <p class="formula-note">여기서 $g(z)$는 가우시안 포락선, $\delta = (\beta_1 - \beta_2)/2$는 위상 불일치 상수, $q = \sqrt{\kappa^2 + \delta^2}$ 입니다.</p>
                     </div>
                 </div>
             </div>

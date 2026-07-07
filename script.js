@@ -57,6 +57,28 @@ let k0, kx1, kx2, gTop, gMid1, gMid2, gBot, phi0, psi0, kappa;
 let phi1 = []; // Precomputed transverse profile for WG1
 let phi2 = []; // Precomputed transverse profile for WG2
 
+// Calculate the number of guided modes for a 3-layer asymmetric slab waveguide
+function getGuidedModeCount(nCore, nCladL, nCladR, width_um, lambda_um) {
+    const k0_val = 2 * Math.PI / lambda_um;
+    const cladMax = Math.max(nCladL, nCladR);
+    const cladMin = Math.min(nCladL, nCladR);
+    
+    if (nCore <= cladMax) return 0;
+    
+    // Core transverse wavevector at cutoff (beta = k0 * cladMax)
+    const kx_cutoff = k0_val * Math.sqrt(nCore * nCore - cladMax * cladMax);
+    
+    // Decaying wavevector of the other cladding at cutoff
+    const g_other_cutoff = k0_val * Math.sqrt(Math.max(0, cladMax * cladMax - cladMin * cladMin));
+    
+    // Phase thickness at cutoff
+    const phi_cutoff = kx_cutoff * width_um - Math.atan(g_other_cutoff / kx_cutoff);
+    
+    // Number of modes is 1 + floor(phi_cutoff / pi)
+    const modeCount = 1 + Math.floor(phi_cutoff / Math.PI);
+    return Math.max(1, modeCount); // At least fundamental mode is guided
+}
+
 // Recalculate Physics & Modes
 function updatePhysics() {
     // 1. Validation for Waveguide 1 (Core 1 must be denser than adjacent claddings)
@@ -122,6 +144,12 @@ function updatePhysics() {
     let It2 = Math.pow(Math.cos(kx2 * width/2 + psi0), 2) / (2 * gMid2);
     let Ib2 = Math.pow(Math.cos(kx2 * width/2 - psi0), 2) / (2 * gBot);
     let norm2 = 1 / Math.sqrt(Ic2 + It2 + Ib2);
+
+    // Calculate and display the number of guided modes
+    let m1 = getGuidedModeCount(nCore1, nTop, nMid, width, lambda);
+    let m2 = getGuidedModeCount(nCore2, nMid, nBot, width, lambda);
+    document.getElementById('mode-count-1').textContent = `${m1}개`;
+    document.getElementById('mode-count-2').textContent = `${m2}개`;
 
     precomputeTransverseModes(norm1, norm2);
 }
