@@ -727,35 +727,23 @@ function solveSlab3D(nCore, nCladL, nCladR, thickness, wavelength, m = 0) {
     return beta;
 }
 
-// Jet-based thermal color map function (optimized dark navy background for v=0)
-function getJetColor(v) {
-    v = Math.max(0, Math.min(1, v));
-    let r = 0, g = 0, b = 0;
+// Signed field color map (Cyan for positive phase, Pink for negative phase, Dark navy for zero field)
+function getSignedColor(v) {
+    v = Math.max(-1.0, Math.min(1.0, v));
+    let r = 8, g = 12, b = 22; // Default background color (Dark Navy)
     
-    if (v < 0.25) {
-        // Dark Blue (10, 15, 60) to Cyan (0, 255, 255)
-        let t = v / 0.25;
-        r = Math.round(10 * (1 - t) + 0 * t);
-        g = Math.round(15 * (1 - t) + 255 * t);
-        b = Math.round(60 * (1 - t) + 255 * t);
-    } else if (v < 0.5) {
-        // Cyan (0, 255, 255) to Green (0, 255, 0)
-        let t = (v - 0.25) / 0.25;
-        r = 0;
-        g = 255;
-        b = Math.round(255 * (1 - t));
-    } else if (v < 0.75) {
-        // Green (0, 255, 0) to Yellow (255, 255, 0)
-        let t = (v - 0.5) / 0.25;
-        r = Math.round(255 * t);
-        g = 255;
-        b = 0;
+    if (v > 0) {
+        // Interpolate from (8, 12, 22) to Cyan (56, 189, 248)
+        let t = v;
+        r = Math.round(8 * (1 - t) + 56 * t);
+        g = Math.round(12 * (1 - t) + 189 * t);
+        b = Math.round(22 * (1 - t) + 248 * t);
     } else {
-        // Yellow (255, 255, 0) to Dark Red (180, 0, 0)
-        let t = (v - 0.75) / 0.25;
-        r = Math.round(255 * (1 - t) + 180 * t);
-        g = Math.round(255 * (1 - t) + 0 * t);
-        b = 0;
+        // Interpolate from (8, 12, 22) to Pink (244, 63, 94)
+        let t = -v;
+        r = Math.round(8 * (1 - t) + 244 * t);
+        g = Math.round(12 * (1 - t) + 63 * t);
+        b = Math.round(22 * (1 - t) + 94 * t);
     }
     return { r, g, b };
 }
@@ -928,7 +916,7 @@ function render3D() {
     const imgData = ctx3D.createImageData(w, h);
     const data = imgData.data;
     
-    // 1. Draw 2D EIM mode profile heatmap (mapped from blue to red)
+    // 1. Draw 2D EIM mode profile heatmap (mapped from Pink to Cyan based on signed electric field)
     for (let x = 0; x < w; x += 2) {
         let y_um = (x - 400) / 60.0;
         let F = F_y[x];
@@ -937,9 +925,8 @@ function render3D() {
             let G = (Math.abs(y_um) <= width3D / 2) ? G_I[y] : G_II[y];
             let E = F * G;
             
-            // Map absolute amplitude field to Jet colormap (max amplitude is 1.0, zero field is dark blue)
-            let intensity = Math.abs(E);
-            let col = getJetColor(intensity);
+            // Map signed electric field directly to Cyan/Pink colormap
+            let col = getSignedColor(E);
             
             draw2x2Block(data, x, y, w, col.r, col.g, col.b);
         }
@@ -1084,14 +1071,15 @@ function render3DCutlines() {
     }
     
     cutCtx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    gCtx.textAlign = 'right';
+    cutCtx.textAlign = 'right';
+    cutCtx.textBaseline = 'middle';
     cutCtx.font = '8px Fira Code';
-    cutCtx.fillText('1.0', 25, h * 0.18);
-    cutCtx.fillText('0.5', 25, h * 0.53);
-    cutCtx.fillText('0.0', 25, h * 0.88);
+    cutCtx.fillText(' 1.0', 30, h * 0.15);
+    cutCtx.fillText(' 0.0', 30, h * 0.50);
+    cutCtx.fillText('-1.0', 30, h * 0.85);
     
     // Plot Cutlines
-    // 1. Horizontal Cutline: |E(x, y = H/2)| -> plotted along graph in cyan
+    // 1. Horizontal Cutline: E(x, y = H/2) -> plotted along graph in cyan
     cutCtx.strokeStyle = '#38bdf8'; // Cyan
     cutCtx.lineWidth = 2;
     cutCtx.beginPath();
@@ -1106,13 +1094,13 @@ function render3DCutlines() {
         let F = F_y[x_canvas];
         let E_val = F * G_val;
         
-        let y_px = h * 0.85 - Math.abs(E_val) * (h * 0.7); // absolute field profile
+        let y_px = h * 0.5 - E_val * (h * 0.35); // signed field profile
         if (x === 40) cutCtx.moveTo(x, y_px);
         else cutCtx.lineTo(x, y_px);
     }
     cutCtx.stroke();
     
-    // 2. Vertical Cutline: |E(x = 0, y)| -> plotted along graph in pink
+    // 2. Vertical Cutline: E(x = 0, y) -> plotted along graph in pink
     cutCtx.strokeStyle = '#f43f5e'; // Pink
     cutCtx.beginPath();
     
@@ -1126,7 +1114,7 @@ function render3DCutlines() {
         let G = G_I[y_px];
         let E_val = F_center * G;
         
-        let y_px = h * 0.85 - Math.abs(E_val) * (h * 0.7);
+        let y_px = h * 0.5 - E_val * (h * 0.35); // signed field profile
         if (x === 40) cutCtx.moveTo(x, y_px);
         else cutCtx.lineTo(x, y_px);
     }
